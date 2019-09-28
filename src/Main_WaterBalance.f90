@@ -1,6 +1,6 @@
 ! ===================================================================!
-!   UBMOD  -- Water balance method of one-dimensional soil water     !
-!             movement. Version 1.10.                                !
+!   UBMOD_S -- One dimensional mass balance model for unsaturated    !
+!              water flow and solute transport. Version 1.00.        !
 !                                                                    !
 !   Designed by Wei Mao, Yan Zhu and Jinzhong Yang.                  !
 !                                                                    !
@@ -62,10 +62,10 @@
 !     subroutine about input information.
 !     call for basic information. 
     CALL Selector_In
-    IF (Terr.ne.0) GOTO (905, 906, 907) Terr
+    IF (Terr.ne.0) GOTO (905, 906, 907, 908) Terr
 !     call for node information in 1D.
     CALL Profile_In
-    IF (Terr.ne.0) GOTO 908
+    IF (Terr.ne.0) GOTO 909
 ! ====================================================================
 
 !-----preparation of the calculation
@@ -74,12 +74,12 @@
     CALL CPU_time (t1)
 !     The initial water amount in model.
     CALL Balance_Initial
-    IF (Terr.ne.0) GOTO 915
+    IF (Terr.ne.0) GOTO 916
 !     Diffusion model.
     CALL Diffusion_Model
 !     Call for reference Evaportranspiration and division of E&T.
     CALL Upper_Boundary(datapath)
-    IF (Terr.ne.0) GOTO (910,911,912,917,909) Terr
+    IF (Terr.ne.0) GOTO (911,912,913,918,910) Terr
 ! ====================================================================
 
 !-----Begin time loop.
@@ -122,17 +122,17 @@
 !     Output control.
 !     Output the hydraulic head and soil moisture in 1D model.
     CALL Hthuz_out
-    IF (Terr.ne.0) GOTO (914) Terr
+    IF (Terr.ne.0) GOTO (915) Terr
 !   Call for the water balance in 1D and 3D model.
     CALL BalanceT
-    IF (Terr.ne.0) GOTO 915
+    IF (Terr.ne.0) GOTO 916
 !   call for new time and time step.
     WRITE(*,*)"t=",sngl(t)
     
 !   P-Level information
     IF (abs(TPrint(Plevel)-t) < Tol) THEN
         CALL thOut
-        IF (Terr.ne.0) GOTO (916) Terr
+        IF (Terr.ne.0) GOTO (917) Terr
         Plevel = Plevel + 1
     ENDIF
     
@@ -158,7 +158,7 @@
     GOTO 100
     
 200 CALL CPU_time (t2)
-    WRITE(90,*,err=913)'Real time [sec]',t2-t1
+    WRITE(90,*,err=914)'Real time [sec]',t2-t1
     CLOSE(90)
     CLOSE(80) 
     CLOSE(89) 
@@ -206,6 +206,10 @@
     GOTO 999
 917 ierr=17
     GOTO 999
+918 ierr=18
+    GOTO 999
+919 ierr=19
+    GOTO 999
 930 ierr=30
     GOTO 999
 931 ierr=31
@@ -231,17 +235,18 @@
     cErr( 5)='Error when reading from an input file Selector.in Basic Information !'
     cErr( 6)='Error when reading from an input file Selector.in Material Information !'
     cErr( 7)='Error when reading from an input file Selector.in Time Information !'
-    cErr( 8)='Error when reading from an input file Profile.in !'
-    cErr( 9)='Error when reading from an input file Met.in !'
-    cErr(10)='Error when opening or reading from an input file 01.wea !'
-    cErr(11)='Error when opening or reading from an input file cropdat.dat !'
-    cErr(12)='Error when opening or reading from an input file crp/et0/eti !'
-    cErr(13)='Error when writing to the output file Runtime.out !'
-    cErr(14)='Error when writing to the output file A_Level.out !'
-    cErr(15)='Error when writing to the output file Balance.out !'
-    cErr(16)='Error when writing to the output file TPrint.out !'
-    cErr(17)='Error when writing to the output file eta.dat !'
-    cErr(18)='Dimension of the Array is exceeded !'
+    cErr( 8)='Error when reading from an input file Selector.in Solute Information !'
+    cErr( 9)='Error when reading from an input file Profile.in !'
+    cErr(10)='Error when reading from an input file Met.in !'
+    cErr(11)='Error when opening or reading from an input file 01.wea !'
+    cErr(12)='Error when opening or reading from an input file cropdat.dat !'
+    cErr(13)='Error when opening or reading from an input file crp/et0/eti !'
+    cErr(14)='Error when writing to the output file Runtime.out !'
+    cErr(15)='Error when writing to the output file A_Level.out !'
+    cErr(16)='Error when writing to the output file Balance.out !'
+    cErr(17)='Error when writing to the output file TPrint.out !'
+    cErr(18)='Error when writing to the output file eta.dat !'
+    cErr(19)='Dimension of the Array is exceeded !'
     cErr(30)='Mass balance error in Water_Redis module !'
     cErr(31)='Mass balance error in Water_SetET module !'
     cErr(32)='Mass balance error in Water_Diff module !'

@@ -26,9 +26,47 @@
     CumT  = 0.0_KR
     sinkt = 0.0_KR
     sink1d = 0.0_KR
+!   Solute
+    Svoluz  = 0.0_KR
+	Sup     = 0.0_KR
+	Sdn     = 0.0_KR
+	Ssinkt  = 0.0_KR
+    Smvoluz  = 0.0_KR
+    Simvoluz = 0.0_KR
 
-    voluz=sum(th(1:Nlayer)*dz(1:Nlayer))  !!!The specific storage is ignored.
-    WRITE(89,*,err=901)"Variables=t,voluz,Dvoluz,qair,qbtm,CumE,CumT,Error,Error%"
+    IF (MIM) THEN
+        voluz   = sum(thini(1:Nlayer)*dz(1:Nlayer))
+        mvoluz  = sum(thmini(1:Nlayer)*dz(1:Nlayer))
+        imvoluz = sum(thimini(1:Nlayer)*dz(1:Nlayer))
+        
+        IF (lchem) THEN
+            Smvoluz  = sum(thmini(1:Nlayer)*dz(1:Nlayer)*Concini(1:Nlayer))
+            Simvoluz = sum(thimini(1:Nlayer)*dz(1:Nlayer)*Conimini(1:Nlayer))
+            Svoluz   = Smvoluz+Simvoluz
+            WRITE(89,'(A150)')'Variables=t,mvoluz,mDvoluz,imvoluz,imDvoluz,Smvoluz,SmDvoluz, &
+                             & Simvoluz,SimDvoluz,qair,Sup,qbtm,Sdn,CumE,CumT,SSink,Error, &
+                             & Error%,SError,SError%'
+        ELSE
+            WRITE(89,'(A80)')'Variables=t,voluz,mvoluz,imvoluz,Dvoluz,qair,qirr,qbtm,CumE, &
+                             & CumT,Error,Error%'
+        ENDIF
+    ELSE
+        voluz = sum(th(1:Nlayer)*dz(1:Nlayer))
+        IF (bdn == -1) THEN
+            voluz = sum(th(1:Nlayer-1)*dz(1:Nlayer-1))
+        ENDIF
+        
+        IF (lchem) THEN
+            Svoluz = sum(thini(1:Nlayer)*dz(1:Nlayer)*Concini(1:Nlayer))
+            IF (bdn == -1) THEN
+                Svoluz = sum(thini(1:Nlayer-1)*dz(1:Nlayer-1)*Concini(1:Nlayer-1))
+            ENDIF
+            WRITE(89,'(A100)')'Variables=t,voluz,Dvoluz,Svoluz,SDvoluz,qair,qirr,Sup,qbtm,Sdn, &
+                             & CumE,CumT,SSink,Error,Error%,SError,SError%'
+        ELSE
+            WRITE(89,'(A60)')'Variables=t,voluz,Dvoluz,qair,qirr,qbtm,CumE,CumT,Error,Error%' 
+        ENDIF
+    ENDIF
     RETURN
     
 901 Terr=1

@@ -100,4 +100,57 @@
     REAL (KIND=KR), ALLOCATABLE :: Slope(:)      ! Empirical Formula of Diffusion.
     REAL (KIND=KR), ALLOCATABLE :: Intercept(:)  ! Empirical Formula of Diffusion.
     REAL (KIND=KR), ALLOCATABLE :: par_n(:)      ! Empirical Formula of n.
+
+!   Solute transport
+    LOGICAL (KIND=4) :: MIM
+    LOGICAL (KIND=4) :: DiCr
+
+    INTEGER (KIND=KI) :: CBup
+    INTEGER (KIND=KI) :: CBdn
+    INTEGER (KIND=KI) :: CNup      ! Numbers of Solute Upper Boundary Node.
+    INTEGER (KIND=KI) :: CNdn      ! Numbers of Solute Lower Boundary Node.
+    INTEGER (KIND=KI) :: Cind      ! The factor of solute calculation time step.
+    INTEGER (KIND=KI) :: index
+    
+    REAL (KIND=KR) :: w          
+    REAL (KIND=KR) :: Concup     
+    REAL (KIND=KR) :: Concdn     
+    REAL (KIND=KR) :: Svoluz     
+    REAL (KIND=KR) :: Smvoluz    
+    REAL (KIND=KR) :: Simvoluz   
+    REAL (KIND=KR) :: Sup        
+    REAL (KIND=KR) :: Sdn        
+    REAL (KIND=KR) :: SSinkt     
+    
+    REAL (KIND=KR) :: Csat                        ! Solubility Saturation
+    REAL (KIND=KR), DIMENSION(NMatD) :: rou       ! density, M3/L.
+    REAL (KIND=KR), DIMENSION(NMatD) :: kx        ! Adsorption Coefficient, L3/M-1.
+    REAL (KIND=KR), DIMENSION(NMatD) :: miuw      ! Water First Order Reaction Rate Coefficient, T-1.
+    REAL (KIND=KR), DIMENSION(NMatD) :: mius      ! Solid First Order Reaction Rate Coefficient, T-1.
+    REAL (KIND=KR), DIMENSION(NMatD) :: gamaw     ! Water Zero Order Reaction Rate Coefficient, ML-3T-1.
+    REAL (KIND=KR), DIMENSION(NMatD) :: gamas     ! Solid Zero Order Reaction Rate Coefficient, T-1.
+    REAL (KIND=KR), DIMENSION(NMatD) :: tao       ! Dissolution Rate of Crystalline Salt, T-1.
+    
+    REAL (KIND=KR), DIMENSION(11,NMATD) :: ChPar     ! The Hydraulic parameters.
+    
+    REAL (KIND=KR), ALLOCATABLE :: Conc(:)    ! Solute Concentration. MIM True, Mobile Solute Concentration.
+    REAL (KIND=KR), ALLOCATABLE :: Concini(:) ! The Initial Solute Concentration.
+    REAL (KIND=KR), ALLOCATABLE :: Conc1(:)
+    REAL (KIND=KR), ALLOCATABLE :: Conc2(:)
+    REAL (KIND=KR), ALLOCATABLE :: Conc3(:)
+    REAL (KIND=KR), ALLOCATABLE :: Conc4(:)
+    REAL (KIND=KR), ALLOCATABLE :: Conim(:)   ! Immobile Solute Concentration.
+    REAL (KIND=KR), ALLOCATABLE :: Conimini(:) ! The Initial Immobile Solute Concentration.
+
+    REAL (KIND=KR) :: mvoluz    
+    REAL (KIND=KR) :: imvoluz    
+    
+    REAL (KIND=KR), ALLOCATABLE :: thini(:)
+    REAL (KIND=KR), ALLOCATABLE :: thm(:)     ! Mobile Soil Water Content.
+    REAL (KIND=KR), ALLOCATABLE :: thim(:)    ! Immobile Soil Water Content.
+    REAL (KIND=KR), ALLOCATABLE :: thmini(:)  ! The Initial Mobile Soil Water Content.
+    REAL (KIND=KR), ALLOCATABLE :: thimini(:) ! The Initial Immobile Soil Water Content.
+
+    REAL (KIND=KR), ALLOCATABLE :: Ssalt(:)  ! The Initial Mobile Soil Water Content.
+    REAL (KIND=KR), ALLOCATABLE :: Ssalim(:) ! The Initial Immobile Soil Water Content.
     END MODULE parm
