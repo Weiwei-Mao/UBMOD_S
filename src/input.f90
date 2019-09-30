@@ -13,7 +13,7 @@
 !   xConv       The conversion coefficient of length.
 !   tConv       The conversion coefficient of time.
 !   mConv       The conversion coefficient of mass.
-!   AtmBC        If meteorological data to calculate the ET.
+!   IfPM        If meteorological data to calculate the ET.
 !   Bup         Flux upper boundary condition.
 !   Bdn         Flux lower boundary condition.
 !   lchem       If calculate the solute.
@@ -56,14 +56,25 @@
     READ(33,*,err=901) LUnit,TUnit,MUnit
     CALL Conversion(LUnit, TUnit, MUnit, xConv, tConv, mConv)
     READ(33,*,err=901)
-    READ(33,*,err=901) lCheck,lWat,lChem,lTemp,MIM,DiCr,lCrop,AtmBC
+    READ(33,*,err=901) lCheck,lWat,lChem,lTemp,MIM,DiCr,lCrop,IfPM
     READ(33,*,err=901)
-    READ(33,*,err=901) Bup,Bdn,Drng,Dfit
+    IF (.not.lWat) THEN
+        READ(33,*,err=901)rTop,rBot,rRoot
+    ELSE
+        READ(33,*,err=901) Bup,Bdn,Drng,Dfit
+    ENDIF
     WRITE(*,*) 'Reading Material information'
     READ(33,*,err=902)
     READ(33,*,err=902)
     READ(33,*,err=902) NMat,NReg,NPar,CosAlf
     READ(33,*,err=902) 
+
+    IF (.NOT. ALLOCATED(ths)) ALLOCATE(ths(NMat     ))
+    IF (.NOT. ALLOCATED(thF)) ALLOCATE(thF(NMat     ))
+    IF (.NOT. ALLOCATED(thw)) ALLOCATE(thw(NMat     ))
+    IF (.NOT. ALLOCATED(par)) ALLOCATE(par(Npar,NMat))
+    IF (.NOT. ALLOCATED(sp )) ALLOCATE(sp(4,NMat    ))
+    
     DO i=1,NMat
         READ(33,*,err=902) (Par(j,i),j=1,NPar),thF(i),thW(i),(sp(j,i),j=1,4)
         ths(i)=par(2,i)
@@ -77,16 +88,16 @@
     dt = dt/tConv
     dtOld = dt
     READ(33,*,err=903)
-    MaxAL = 0
+    MaxAL = 0.0_KR
     READ(33,*,err=903) date,tinit,tEnd,MaxAL
     t = tinit/tConv+dt
     tEnd = tEnd/tConv
     READ(33,*,err=903)
+    IF (.NOT. ALLOCATED(TPrint)) ALLOCATE(TPrint(MPL))
     READ(33,*,err=903) (TPrint(i),i=1,MPL)
-!   READ(33,*)
-!   READ(33,*) (TB(i),i=1,MMPL)
-!    interval=int(tEnd-t+0.99_KR)! The total simulation period.
+    TPrint = tPrint/tConv
     Plevel = 1
+    Tlevel = 1
 
 !   The solute transport module.
     IF(lchem) THEN
@@ -97,31 +108,40 @@
         READ(33,*,err=904)
 !       the exchange coefficient between mobile region and immobile region
 !       the diffusion coefficient
+        IF (.NOT. ALLOCATED(ChPar)) ALLOCATE(ChPar(11,NMat))
+        IF (.NOT. ALLOCATED(rou  )) ALLOCATE(rou(NMat  ))
+        IF (.NOT. ALLOCATED(kx   )) ALLOCATE(kx(NMat   ))
+        IF (.NOT. ALLOCATED(miuw )) ALLOCATE(miuw(NMat ))
+        IF (.NOT. ALLOCATED(mius )) ALLOCATE(mius(NMat ))
+        IF (.NOT. ALLOCATED(gamaw)) ALLOCATE(gamaw(NMat))
+        IF (.NOT. ALLOCATED(gamas)) ALLOCATE(gamas(NMat))
+        IF (.NOT. ALLOCATED(tao  )) ALLOCATE(tao(NMat  ))
         DO i=1,Nmat    
             READ(33,*) (ChPar(j,i),j=1,11)
-            rou(i) = ChPar(4,i)
-            kx(i) = ChPar(5,i)
-            miuw(i) = ChPar(6,i)
-            mius(i) = ChPar(7,i)
+            rou(i)   = ChPar(4,i)
+            kx(i)    = ChPar(5,i)
+            miuw(i)  = ChPar(6,i)
+            mius(i)  = ChPar(7,i)
             gamaw(i) = ChPar(8,i)
             gamas(i) = ChPar(9,i)
-            tao(i) = ChPar(10,i)
+            tao(i)   = ChPar(10,i)
             IF (.not. DiCr) THEN
                 tao(i) = 0D0
             ENDIF
         ENDDO
-        Csat = ChPar(11,1)
-        rou = rou*xConv/mConv**3
-        kx = kx*mConv/xConv**3
-        miuw = miuw*tConv
-        mius = mius*tConv
+        Csat  = ChPar(11,1)
+        rou   = rou*xConv/mConv**3
+        kx    = kx*mConv/xConv**3
+        miuw  = miuw*tConv
+        mius  = mius*tConv
         gamaw = gamaw/mConv*xConv**3*tConv
         gamas = gamas*tConv
-        tao = tao*tConv
-        Csat = Csat/mConv*xConv**3
+        tao   = tao*tConv
+        Csat  = Csat/mConv*xConv**3
     ENDIF
 !   The temperature module.
     IF(lTemp) THEN
+        WRITE(*,*)'The temperature module is undeveloped by now !'
         PAUSE
     ENDIF
     
@@ -169,46 +189,8 @@
 !   the Nlayer
     READ(32,*,err=901)
     READ(32,*,err=901) Nlayer, NObs
-    
-    IF (.NOT. ALLOCATED(dz       )) ALLOCATE(dz(Nlayer       ))
-    IF (.NOT. ALLOCATED(zx       )) ALLOCATE(zx(Nlayer+1     ))
-    IF (.NOT. ALLOCATED(MATuz    )) ALLOCATE(MATuz(Nlayer    ))
-    IF (.NOT. ALLOCATED(th       )) ALLOCATE(th(Nlayer       ))
-    IF (.NOT. ALLOCATED(Sink1d   )) ALLOCATE(Sink1d(Nlayer   ))
-    IF (.NOT. ALLOCATED(Epi      )) ALLOCATE(Epi(Nlayer      ))
-    IF (.NOT. ALLOCATED(Tri      )) ALLOCATE(Tri(Nlayer      ))
-    IF (.NOT. ALLOCATED(dnn      )) ALLOCATE(dnn(Nlayer      ))
-    IF (.NOT. ALLOCATED(Slope    )) ALLOCATE(Slope(Nlayer    ))
-    IF (.NOT. ALLOCATED(Intercept)) ALLOCATE(Intercept(Nlayer))
-    IF (.NOT. ALLOCATED(par_n    )) ALLOCATE(par_n(Nlayer    ))
-    
-    IF (lChem) THEN
-        IF (.NOT. ALLOCATED(thini  )) ALLOCATE(thini(Nlayer  ))
-        IF (.NOT. ALLOCATED(Conc   )) ALLOCATE(Conc(Nlayer   ))
-        IF (.NOT. ALLOCATED(Concini)) ALLOCATE(Concini(Nlayer))
-        IF (.NOT. ALLOCATED(Conc1  )) ALLOCATE(Conc1(Nlayer  ))
-        IF (.NOT. ALLOCATED(Conc2  )) ALLOCATE(Conc2(Nlayer  ))
-        IF (.NOT. ALLOCATED(Conc3  )) ALLOCATE(Conc3(Nlayer  ))
-        IF (.NOT. ALLOCATED(Conc4  )) ALLOCATE(Conc4(Nlayer  ))
-        IF (DiCr) THEN
-            IF (.NOT. ALLOCATED(Ssalt)) ALLOCATE(Ssalt(Nlayer))
-            IF (MIM .and. (.NOT. ALLOCATED(Ssalim))) ALLOCATE(Ssalim(Nlayer))
-        ENDIF
-    ENDIF
-    
-    IF (MIM) THEN
-        IF (.NOT. ALLOCATED(thm     )) ALLOCATE(thm(Nlayer     ))
-        IF (.NOT. ALLOCATED(thim    )) ALLOCATE(thim(Nlayer    ))
-        IF (.NOT. ALLOCATED(thmini  )) ALLOCATE(thmini(Nlayer  ))
-        IF (.NOT. ALLOCATED(thimini )) ALLOCATE(thimini(Nlayer ))
-        IF (.NOT. ALLOCATED(Conim   )) ALLOCATE(Conim(Nlayer   ))
-        IF (.NOT. ALLOCATED(Conimini)) ALLOCATE(Conimini(Nlayer))
-    ENDIF    
-    
-    zx = 0.0_KR
-    dz = 0.0_KR
-    MATuz = 0_KI
-    th = 0.0_KR
+
+    CALL Allocatearray
 
 !   the height.
     READ(32,*,err=901)
@@ -237,14 +219,14 @@
     READ(32,*,err=901)
     READ(32,*,err=901) (th(j),j=1,Nlayer,1)
 
-    DO i = 1,Nlayer
-        m = MATuz(i)
-        IF (th(i) > par(2,m)) THEN
-            th(i) = par(2,m)
-        ELSEIF (th(i) < par(1,m)) THEN
-            th(i) = par(1,m)
-        ENDIF
-    ENDDO
+    !DO i = 1,Nlayer
+    !    m = MATuz(i)
+    !    IF (th(i) > par(2,m)) THEN
+    !        th(i) = par(2,m)
+    !    ELSEIF (th(i) < par(1,m)) THEN
+    !        th(i) = par(1,m)
+    !    ENDIF
+    !ENDDO
     thini = th
     IF (lchem) THEN
         READ(32,*,err=901)
@@ -286,7 +268,7 @@
             Ssalim = Ssalim/mConv
         ENDIF
     ENDIF
-    
+
     CALL Examine2
     
     CLOSE(32)
@@ -354,91 +336,138 @@
         STOP ! Stop the Program
     ENDIF
     
-    !IF (MUnit .eq. "g  ") THEN
-    !    mConv = 1000.0_KR
-    !ELSEIF (MUnit .eq. "kg  ") THEN
-    !    mConv = 1.0_KR
-    !ELSE
-    !    WRITE(*,*) 'MUnit is wrong!'
-    !    WRITE(99,*) 'MUnit is wrong!'
-    !    PAUSE
-    !    STOP ! Stop the Program
-    !ENDIF
+    IF (MUnit .eq. "g  ") THEN
+        mConv = 1000.0_KR
+    ELSEIF (MUnit .eq. "kg  ") THEN
+        mConv = 1.0_KR
+    ELSE
+        WRITE(*,*) 'MUnit is wrong!'
+        WRITE(99,*) 'MUnit is wrong!'
+        PAUSE
+        STOP ! Stop the Program
+    ENDIF
 
     RETURN
     END SUBROUTINE Conversion
 
+
+! ====================================================================
+!   Subroutine Allocatearray
+!     
+!   Purpose: Allocate array.
+! ====================================================================
+    SUBROUTINE Allocatearray
+    USE parm
+    IMPLICIT NONE
+
+    IF (.NOT. ALLOCATED(dz       )) ALLOCATE(dz(Nlayer       ))
+    IF (.NOT. ALLOCATED(zx       )) ALLOCATE(zx(Nlayer+1     ))
+    IF (.NOT. ALLOCATED(MATuz    )) ALLOCATE(MATuz(Nlayer    ))
+    IF (.NOT. ALLOCATED(REGuz    )) ALLOCATE(REGuz(Nlayer    ))
+    IF (.NOT. ALLOCATED(th       )) ALLOCATE(th(Nlayer       ))
+    IF (.NOT. ALLOCATED(Sink1d   )) ALLOCATE(Sink1d(Nlayer   ))
+    IF (.NOT. ALLOCATED(Epi      )) ALLOCATE(Epi(Nlayer      ))
+    IF (.NOT. ALLOCATED(Tri      )) ALLOCATE(Tri(Nlayer      ))
+    IF (.NOT. ALLOCATED(Slope    )) ALLOCATE(Slope(NMat      ))
+    IF (.NOT. ALLOCATED(Intercept)) ALLOCATE(Intercept(NMat  ))
+    IF (.NOT. ALLOCATED(par_n    )) ALLOCATE(par_n(NMat      ))
+    IF (.NOT. ALLOCATED(qflux    )) ALLOCATE(qflux(Nlayer,2  ))
+    
+    IF (lChem) THEN
+        IF (.NOT. ALLOCATED(thini  )) ALLOCATE(thini(Nlayer  ))
+        IF (.NOT. ALLOCATED(Conc   )) ALLOCATE(Conc(Nlayer   ))
+        IF (.NOT. ALLOCATED(Concini)) ALLOCATE(Concini(Nlayer))
+        IF (.NOT. ALLOCATED(Conc1  )) ALLOCATE(Conc1(Nlayer  ))
+        IF (.NOT. ALLOCATED(Conc2  )) ALLOCATE(Conc2(Nlayer  ))
+        IF (.NOT. ALLOCATED(Conc3  )) ALLOCATE(Conc3(Nlayer  ))
+        IF (.NOT. ALLOCATED(Conc4  )) ALLOCATE(Conc4(Nlayer  ))
+        IF (.NOT. ALLOCATED(Ssink1d)) ALLOCATE(Ssink1d(Nlayer))
+        IF (DiCr) THEN
+            IF (.NOT. ALLOCATED(Ssalt)) ALLOCATE(Ssalt(Nlayer))
+            IF (MIM .and. (.NOT. ALLOCATED(Ssalim))) ALLOCATE(Ssalim(Nlayer))
+        ENDIF
+    ENDIF
+    
+    IF (MIM) THEN
+        IF (.NOT. ALLOCATED(thm      )) ALLOCATE(thm(Nlayer      ))
+        IF (.NOT. ALLOCATED(thim     )) ALLOCATE(thim(Nlayer     ))
+        IF (.NOT. ALLOCATED(thmini   )) ALLOCATE(thmini(Nlayer   ))
+        IF (.NOT. ALLOCATED(thimini  )) ALLOCATE(thimini(Nlayer  ))
+        IF (.NOT. ALLOCATED(Conim    )) ALLOCATE(Conim(Nlayer    ))
+        IF (.NOT. ALLOCATED(Conimini )) ALLOCATE(Conimini(Nlayer ))
+        IF (.NOT. ALLOCATED(Ssink1dm )) ALLOCATE(Ssink1dm(Nlayer ))
+        IF (.NOT. ALLOCATED(Ssink1dim)) ALLOCATE(Ssink1dim(Nlayer))
+    ENDIF
+    
+    END SUBROUTINE Allocatearray
+
+    
 ! ====================================================================
 !   Subroutine Examine
 !     
 !   Purpose: Examine the input Parameters
 ! ====================================================================
     SUBROUTINE Examine1
-    USE parm 
-    
-    INTEGER (kind=4) :: Err
-    Err = 0
+    USE parm
+    IMPLICIT NONE
+    INTEGER (KIND=4) :: i, j
 
-!   Examine the Number of Hydraulic Parameters
-    IF (NPar /= 5) THEN
-        WRITE(*,*) 'The numbers of parameters maybe wrong!'
-        WRITE(99,*) 'The numbers of parameters maybe wrong!'
-        Err = Err + 1
-    ENDIF
+!   Check the input data.
+    IF (.not.lChem .and. MIM) GOTO 901
     
+    IF (Drng>7 .or. Drng<1) GOTO 901
+    IF (Dfit>3 .or. Dfit<-1) GOTO 901
+    IF (CosAlf>1 .or. CosAlf<0) GOTO 901
+    IF (NMat>NMATD) GOTO 902
+    IF (NReg>NREGD) GOTO 902
+    IF (Npar>NPARD) GOTO 902
+    IF (MPL>MMPLD) GOTO 902
     DO i = 1,NMat
-        IF (thF(i) > par(2,i) .or. thW(i) > par(2,i)) THEN
-            WRITE(*,*) 'thF or thW is greater than ths!'
-            WRITE(99,*) 'thF or thW is greater than ths!'
-            Err = Err + 1
-        ENDIF
-        IF (thF(i) < par(1,i) .or. thW(i) < par(1,i)) THEN
-            WRITE(*,*) 'thF or thW is smaller than thr!'
-            WRITE(99,*) 'thF or thW is smaller than thr!'
-            Err = Err + 1
-        ENDIF
+        DO j = 1,Npar
+            IF (par(j,i)<0) GOTO 903
+        ENDDO
+        IF (par(1,i)>par(2,i)) GOTO 903
+        IF (thF(i)>par(2,i) .or. thW(i)>par(2,i)) GOTO 903
+        IF (thF(i)<par(1,i) .or. thW(i)<par(1,i)) GOTO 903
+        IF (sp(1,i)>=1 .or. sp(1,i)<=0) GOTO 903
+        IF (sp(4,i).ne.1) GOTO 903
+        DO j = 1,3
+            IF (sp(j,i)>sp(j+1,i)) GOTO 903
+        ENDDO
+        IF (MIM .and. (par(6,i)-0.0_KR<Tol)) GOTO 903
     ENDDO
+    IF (TPrint(MPL)>tEnd) GOTO 903
+    RETURN
 
-    IF (Err) THEN
-        PAUSE
-        STOP ! Stop the Program
-    ENDIF
-    
-    IF (dt > 1) THEN
-        WRITE(*,*) 'dt > 1d, Caution the time of boundary condition and atmospheric condition'
-    ENDIF
+901 Terr=5
+    RETURN
+902 Terr=6
+    RETURN
+903 Terr=7
+    RETURN
 
     END SUBROUTINE Examine1
 
     SUBROUTINE Examine2
     USE parm 
+    IMPLICIT NONE
+    INTEGER (KIND=4) :: i
 
-    INTEGER (kind=4) :: Err
-
-    Err = 0
-
-    IF (zx(1) /= 0) THEN
-        WRITE(*,*) 'The first number of zx does not zero!'
-        WRITE(99,*) 'The first number of zx does not zero!'
-        Err = Err + 1
-    ENDIF
+    IF (Nlayer>NLAYERD) GOTO 901 
+    IF (NObs>NOBSD) GOTO 901
     
-    DO i = 1,NMat
-        IF (dz(i) <= 0) THEN
-            WRITE(*,*) 'The thickness of layer is negative!'
-            WRITE(99,*) 'The thickness of layer is negative!'
-            Err = Err + 1
-        ENDIF
-        IF (th(i) > par(2,i) .or. th(i) < par(1,i)) THEN
-            WRITE(*,*) 'th is out of bounds!'
-            WRITE(99,*) 'th is out of bounds!'
-            Err = Err + 1
-        ENDIF
+    IF (zx(1).ne.0) GOTO 902
+    DO i=1,Nlayer
+        IF (dz(i)<=0) GOTO 902
     ENDDO
+    DO i=1,NObs
+        IF (Obs(i)>NObs) GOTO 902
+    ENDDO
+    RETURN
 
-    IF (Err) THEN
-        PAUSE
-        STOP ! Stop the Program
-    ENDIF
-
+901 Terr=2
+    RETURN
+902 Terr=3
+    RETURN
+    
     END SUBROUTINE Examine2

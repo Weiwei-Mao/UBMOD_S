@@ -32,24 +32,38 @@
     USE parm
     IMPLICIT NONE
     
-    REAL (kind=KR) :: step, qairtemp, thss
+    REAL (kind=KR) :: qairtemp, thss
     REAL (kind=KR) :: qvoluz      ! The Difference of Saturated and Initial Water Volumn.
     INTEGER (kind=KI) :: i, j, m
-          
-    qairtemp = qair*dt
+    
+    qvoluz = 0.0_KR
+    qairtemp = (qair+qirr)*dt
+
+    DO i =1,Nlayer
+        m = MATuz(i)
+        qvoluz = qvoluz+(ths(m)-th(i))*dz(i)
+    ENDDO
+
+    IF (qairtemp > qvoluz .and. Bdn == 0) THEN
+        Terr = 2
+        qairtemp = qvoluz
+        RETURN
+    ENDIF
+
     DO j=1,Nlayer
         m=MATuz(j)
-        thss=par(2,m)
+        qflux(j,1) = qairtemp
 
-        IF (qairtemp>(thss-th(j))*dz(j)) THEN	
-            qairtemp=qairtemp-(thss-th(j))*dz(j)
-            th(j)=thss
+        IF (qairtemp>(ths(m)-th(j))*dz(j)) THEN	
+            qairtemp=qairtemp-(ths(m)-th(j))*dz(j)
+            th(j)=ths(m)
         ELSE
             th(j)=th(j)+qairtemp/dz(j)
             qairtemp=0.0_KR
         ENDIF
+        qflux(j,2)=qairtemp
     ENDDO
-    
+    RETURN
     END SUBROUTINE infil
 
 ! ====================================================================
@@ -71,16 +85,16 @@
 !    drainage
 ! ==================================================================== 
          ! do   
-    perco=0.0_KR
-    temp=0.0_KR
-    sum0 = 0.0_KR
-    sum1 = 0.0_KR
+    perco = 0.0_KR
+    temp  = 0.0_KR
+    sum0  = 0.0_KR
+    sum1  = 0.0_KR
+    qflux = 0.0_KR
               
     CALL infil  !allocation of infiltration water
-    
-    DO i = 1,Nlayer
-        sum0 = sum0+th(i)*dz(i)
-    ENDDO
+    IF (Terr.ne.0) RETURN
+
+    sum0 = sum(th(1:Nlayer)*dz(1:Nlayer))
               
     DO j=1,Nlayer
         m=MATuz(j)
@@ -96,18 +110,19 @@
             IF (th(j)>thf(m)) THEN
                 alpha=par(3,m)
                 IF (alpha >= 30 .and. alpha <= 10) THEN
-                    WRITE(*,*)"Please check alpha"
+                    WRITE(*,*)"Please check the scope of alpha"
                     STOP
                 ENDIF
-                thnew1=ths(M)-(ths(M)-thw(M))/alpha*log(alpha*par(5,m)*step/dz(j)/(ths(M)-thw(M)) &
-                      +exp(alpha*(ths(M)-th(j))/(ths(M)-thw(M))))
+                thnew1=ths(M)-(ths(M)-thw(M))/alpha*log(alpha*par(5,m)*step/dz(j)/ &
+                      & (ths(M)-thw(M))+exp(alpha*(ths(M)-th(j))/(ths(M)-thw(M))))
             ELSE
                 thnew1=th(j)
             ENDIF
         ELSEIF (Drng==3) THEN !(theta)beta; Gardner model; beta K=0.002 ks
             IF (th(j)>thf(m)) THEN
                 Beta1=-2.655/log10(thf(m)/ths(m))
-                thnew1=(th(j)**(1-beta1)+(beta1-1)*par(5,m)*step/dz(j)/ths(M)**beta1)**(1/(1-beta1))
+                thnew1=(th(j)**(1-beta1)+(beta1-1)*par(5,m)*step/dz(j)/ths(M)**beta1) &
+                      & **(1/(1-beta1))
             ELSE
                 thnew1=th(j)
             ENDIF
@@ -120,15 +135,16 @@
             ENDIF
         ELSEIF (Drng==5) THEN !
             IF (th(j)>thf(m)) THEN
-                thnew1=thF(m)+dz(j)*(par(2,m)-thF(m))**2/(par(5,m)*step+dz(j)*(par(2,m)-thF(m))**2/(th(j)-thF(m)))
+                thnew1=thF(m)+dz(j)*(par(2,m)-thF(m))**2/(par(5,m)*step+dz(j)*(par(2,m) &
+                      & -thF(m))**2/(th(j)-thF(m)))
             ELSE
                 thnew1=th(j)
             ENDIF
         ELSEIF (Drng==6) THEN  ! 
             IF (th(j)>thf(m)) THEN
                 n=par(4,m)
-                thnew1=par(1,m)+(par(5,m)*step*(2/n+2)/dz(j)/((par(2,m)-par(1,m))**(2/n+3))+(th(j)-  &
-                           par(1,m))**(-2/n-2))**(1/(-2/n-2))
+                thnew1=par(1,m)+(par(5,m)*step*(2/n+2)/dz(j)/((par(2,m)-par(1,m))**(2/n+3)) &
+                      & +(th(j)-par(1,m))**(-2/n-2))**(1/(-2/n-2))
             ELSE
                 thnew1=th(j)
             ENDIF
@@ -142,7 +158,11 @@
                 thnew1=th(j)
             ENDIF
         ENDIF
-        perco=-(thnew1-th(j))*dz(j) !
+        perco=-(thnew1-th(j))*dz(j) ! the percolation water flux
+        
+        qflux(j,2) = qflux(j,2) + perco
+        IF (j<Nlayer) qflux(j+1,1)=qflux(j+1,1)+perco
+        
         IF (j<Nlayer) THEN
             temp=perco/dz(j+1) !
         ELSEIF (j==Nlayer) THEN
@@ -153,17 +173,17 @@
 
     j=Nlayer
     m=MATuz(j)          
-    IF (bdn==0) THEN ! 
-!           
+    IF (bdn==0) THEN ! percolation are not allowed
         th(j)=th(j)+perco/dz(j)
-        perco=0.
+        perco=0.0_KR
+        qflux(j,2)=0.0_KR
     ELSEIF (bdn==2) THEN !
         perco=perco
     ENDIF
     
     TotalPerco=TotalPerco+perco
 !
-    excess=0.0_KR !
+    excess=0.0_KR ! The excess water
 
     DO j=Nlayer,1,-1
         m=MATuz(j)
@@ -172,15 +192,19 @@
         IF (th(j)>par(2,m)) THEN	
             excess=(th(j)-par(2,m))*dz(j)
             th(j)=par(2,m)
+            qflux(j,1) = qflux(j,1) - excess
+            IF (j>1) THEN
+                qflux(j-1,2) = qflux(j-1,2) - excess
+            ELSEIF (j==1 .and. excess>0) THEN
+                Terr = 2
+                RETURN
+            ENDIF
         ELSE !
             excess=0.0_KR
         ENDIF
-    
     ENDDO
     
-    DO i = 1,Nlayer
-        sum1 = sum1+th(i)*dz(i)
-    ENDDO
+    sum1 = sum(th(1:Nlayer)*dz(1:Nlayer))
     delta = sum0-sum1-TotalPerco
     IF (delta > Tol) THEN
         Terr = 1
@@ -215,7 +239,6 @@
     REAL (kind=KR) :: thcr
     REAL (kind=KR) :: Epy, Tpy
 
-!
 ! re zero the Tra and epa.
     Tra=0.0_KR
     Epa=0.0_KR
@@ -223,20 +246,19 @@
     sum0 = 0.0_KR
     sum1 = 0.0_KR
 !    
-    DO i = 1,Nlayer
-        sum0 = sum0+th(i)*dz(i)
-    ENDDO
+    sum0 = sum(th(1:Nlayer)*dz(1:Nlayer))
+
     DO j=1,Nlayer
         m=MATuz(j)
-        sink1d(j)=0.
-        thdry=(Thw(M)+par(1,M))/2. !
-        fEact=MAX((Th(j)-Thdry)/(ThF(M)-Thdry),0D0)
-!        fEact = 1.0
+        sink1d(j)=0.0_KR
+        thdry=(Thw(M)+par(1,M))/2.0_KR !
+        fEact=MAX((Th(j)-Thdry)/(ThF(M)-Thdry),0.0_KR)
+!        fEact = 1.0  !! used by virtual case
         Eact=fEact*Epi(j)*dt
         Epa=Epa+Eact !m/d
-        p=ptab+0.04*(5-Tri(j))
-        thcr=Thw(M)+(1-p)*(ThF(M)-Thw(M)) 
-        fTact=MAX(0D0,MIN(1D0,(Th(j)-Thw(M))/(thcr-Thw(M))))
+        p=ptab+0.04_KR*(5.0_KR-Tri(j))
+        thcr=Thw(M)+(1.0_KR-p)*(ThF(M)-Thw(M)) 
+        fTact=MAX(0.0_KR,MIN(1.0_KR,(Th(j)-Thw(M))/(thcr-Thw(M))))
         Tact=fTact*Tri(j)*dt
         Tra=Tra+Tact !m/d
         Sink1d(j)=Tact+Eact !m/d
@@ -248,25 +270,24 @@
         Th(j)=Th(j)-sink1d(j)/dz(j)
         IF (Th(j) < par(1,m)) THEN
             IF (j == 1) THEN
-                Th(j+1) = Th(j+1)+Th(j)-par(1,m)
+                Th(j+1) = Th(j+1)+Th(j)-par(1,m)*dz(j)/dz(j+1)
                 Th(j) = par(1,m)
             ELSEIF (j > 1) THEN
                 m1 = MATuz(j-1)
-                IF (Th(j-1)+Th(j) <= par(1,m)+par(1,m1)) THEN
-                    Th(j+1) = Th(j+1)+Th(j)+Th(j-1)-par(1,m)-par(1,m1)
+                IF (Th(j-1)*dz(j-1)+Th(j)*dz(j) <= par(1,m)*dz(j)+par(1,m1)*dz(j-1)) THEN
+                    Th(j+1) = Th(j+1)+(Th(j)-par(1,m))*dz(j)/dz(j+1)+(Th(j-1)-par(1,m1)) &
+                            & *dz(j-1)/dz(j+1)
                     Th(j-1) = par(1,m1)
                     Th(j) = par(1,m)
-                ELSEIF (Th(j-1)+Th(j) > par(1,m)+par(1,m1)) THEN
-                    Th(j-1) = Th(j-1)+Th(j)-par(1,m)
+                ELSEIF (Th(j-1)*dz(j-1)+Th(j)*dz(j) > par(1,m)*dz(j)+par(1,m1)*dz(j-1)) THEN
+                    Th(j-1) = Th(j-1)+(Th(j)-par(1,m))*dz(j)/dz(j-1)
                     Th(j) = par(1,m)
                 ENDIF
             ENDIF
         ENDIF
     ENDDO
     
-    DO i = 1,Nlayer
-        sum1 = sum1+th(i)*dz(i)
-    ENDDO
+    sum1 = sum(th(1:Nlayer)*dz(1:Nlayer))
     delta = sum0-sum1-sum(Sink1d)
     IF (delta > Tol) THEN
         Terr = 1
@@ -286,37 +307,47 @@
     USE parm
     IMPLICIT NONE
     
-    INTEGER (kind=KI) :: m,m1,m11,NNN,i,j,k
-    REAL (kind=KR) :: deltat,step
-    REAL (kind=KR) :: Da,Db
-    REAL (kind=KR) :: sum0,sum1,delta
-    REAL (kind=KR) :: correction1,correction2
-    REAL (kind=KR) :: mq,qku
-    REAL (kind=KR) :: v
-    REAL (kind=KR), DIMENSION(Nlayer) :: th0,th1,thu,Courant
-    REAL (kind=KR), DIMENSION(Nlayer) :: D,S,dern
-    REAL (kind=KR), DIMENSION(Nlayer,Nlayer) :: A
-    REAL (kind=KR), DIMENSION(Nlayer) :: B
-    REAL (kind=KR), DIMENSION(Nlayer) :: dq
+    INTEGER (kind=4) :: m,m1,m11,NNN,i,j,k
+    REAL (kind=KR) :: deltat,Da,Db,sum0,sum1,delta
+    REAL (kind=KR) :: correction1,correction2,mq,qku,v
+    REAL (kind=KR), DIMENSION(Nlayer) :: th0,th1,thu,Courant,D,S,dern,B,dq
+    REAL (kind=KR), DIMENSION(Nlayer,3) :: A
     REAL (kind=KR), DIMENSION(Nlayer,2) :: qchange
-    
+
     deltat = dt/ddn
+    thu = th
+
+    IF (bdn == -2 .or. bdn == -1) THEN
+        Nlayer = Nlayer+1
+    ENDIF
+    qku = 0
     
     DO j = 1,ddn
         th0 = th  ! 
 
         DO i = 1,Nlayer
             m = MATuz(i)
-            D(i) = 10**(Slope(m)*th0(i)+Intercept(m))
+            IF (bdn == -2) THEN
+                th0(Nlayer) = par(2,m)
+            ELSEIF (bdn == -1) THEN
+                th0(Nlayer) = dth
+            ENDIF
             S(i) = (th0(i)-par(1,m))/(par(2,m)-par(1,m))
-            IF (abs(1.0 - S(i)) <= 1e-7) THEN
-                S(i) = 1
-                dern(i) = 0
-            ELSEIF (abs(S(i)) <= 1e-7) THEN
-                S(i) = 0
-                dern(i) = 0
+            IF (Dfit>0) THEN
+                D(i) = 10**(Slope(m)*th0(i)+Intercept(m))
             ELSE
-                dern(i) = (par(2,m)-par(1,m))*S(i)*(log(S(i))/(par_n(m)-1)*par_n(m)**3-(par_n(m)-1)/par_n(m)**2.0*(S(i)**(par_n(m)/(1-par_n(m)))-1)*log(S(i)**(par_n(m)/(1-par_n(m)))-1)*S(i)**(-par_n(m)/(1-par_n(m))))
+                D(i) = 10**(Slope(m)*S(i)+Intercept(m))
+            ENDIF
+            IF (abs(1.0 - S(i)) <= Tol) THEN
+                S(i) = 1.0_KR
+                dern(i) = 0.0_KR
+            ELSEIF (abs(S(i)) <= Tol) THEN
+                S(i) = 0.0_KR
+                dern(i) = 0.0_KR
+            ELSE
+                dern(i) = (par(2,m)-par(1,m))*S(i)*(log(S(i))/(par_n(m)-1)*par_n(m)**3 &
+                        & -(par_n(m)-1)/par_n(m)**2.0*(S(i)**(par_n(m)/(1-par_n(m)))-1) &
+                        & *log(S(i)**(par_n(m)/(1-par_n(m)))-1)*S(i)**(-par_n(m)/(1-par_n(m))))
             ENDIF
         ENDDO
 
@@ -325,44 +356,72 @@
             m   = MATuz(i)
             m1  = MATuz(i-1)
             m11 = MATuz(i+1)
-            A(i,i) = dz(i)/deltat+2*sqrt(D(i-1)*D(i))/(dz(i-1)+dz(i))+2*sqrt(D(i+1)*D(i))/(dz(i+1)+dz(i))
-            A(i,i+1) = -2*sqrt(D(i+1)*D(i))/(dz(i+1)+dz(i))
-            A(i,i-1) = -2*sqrt(D(i-1)*D(i))/(dz(i-1)+dz(i))
+            Da = sqrt(D(i-1)*D(i))
+            Db = sqrt(D(i)*D(i+1))
+            ! Considering the immobile region.
+            IF (MIM) THEN
+                IF (th0(i) < thim(i) .and. th0(i-1) < thim(i-1)) THEN
+                    Da = 0
+                ENDIF
+                IF (th0(i) < thim(i) .and. th0(i+1) < thim(i+1)) THEN
+                    Db = 0
+                ENDIF
+            ENDIF
+
+            A(i,2) = dz(i)/deltat+2*sqrt(D(i-1)*D(i))/(dz(i-1)+dz(i))+2*sqrt(D(i+1)*D(i)) &
+                   & /(dz(i+1)+dz(i))
+            A(i,3) = -2*sqrt(D(i+1)*D(i))/(dz(i+1)+dz(i))
+            A(i,1) = -2*sqrt(D(i-1)*D(i))/(dz(i-1)+dz(i))
             ! correction£¬ 
-            correction1 = (S(i)+S(i-1))/2*(par(2,m1)-par(2,m))+(2.0-S(i)-S(i-1))/2*(par(1,m1)-par(1,m))+(dern(i)+dern(i-1))/2*(par_n(m1)-par_n(m))
-            correction2 = (S(i)+S(i+1))/2*(par(2,m11)-par(2,m))+(2.0-S(i)-S(i+1))/2*(par(1,m11)-par(1,m))+(dern(i)+dern(i+1))/2*(par_n(m11)-par_n(m))            
-            !WRITE(99,*)(S(i)+S(i-1))/2*(par(2,m1)-par(2,m))/correction1,(2.0-S(i)-S(i-1))/2*(par(1,m1)-par(1,m))/correction1,(dern(i)+dern(i-1))/2*(par_n(m1)-par_n(m))/correction1
-            !WRITE(99,*)(S(i)+S(i+1))/2*(par(2,m11)-par(2,m))/correction2,(2.0-S(i)-S(i+1))/2*(par(1,m11)-par(1,m))/correction2,(dern(i)+dern(i+1))/2*(par_n(m11)-par_n(m))/correction2
+            correction1 = (S(i)+S(i-1))/2*(par(2,m1)-par(2,m))+(2.0-S(i)-S(i-1))/2*(par(1,m1) &
+                        & -par(1,m))+(dern(i)+dern(i-1))/2*(par_n(m1)-par_n(m))
+            correction2 = (S(i)+S(i+1))/2*(par(2,m11)-par(2,m))+(2.0-S(i)-S(i+1))/2*(par(1,m11) &
+                        & -par(1,m))+(dern(i)+dern(i+1))/2*(par_n(m11)-par_n(m))            
+            !WRITE(99,*)(S(i)+S(i-1))/2*(par(2,m1)-par(2,m))/correction1,(2.0-S(i)-S(i-1))/2* &
+            !         & (par(1,m1)-par(1,m))/correction1,(dern(i)+dern(i-1))/2*(par_n(m1)-par_n(m))/correction1
+            !WRITE(99,*)(S(i)+S(i+1))/2*(par(2,m11)-par(2,m))/correction2,(2.0-S(i)-S(i+1))/2* &
+            !         & (par(1,m11)-par(1,m))/correction2,(dern(i)+dern(i+1))/2*(par_n(m11)-par_n(m))/correction2
             correction1 = correction1
             correction2 = correction2
-            B(i) = th0(i)*dz(i)/deltat-correction1*2*sqrt(D(i-1)*D(i))/(dz(i)+dz(i-1))-correction2*2*sqrt(D(i+1)*D(i))/(dz(i)+dz(i+1))
+            B(i) = th0(i)*dz(i)/deltat-correction1*2*sqrt(D(i-1)*D(i))/(dz(i)+dz(i-1))- &
+                 & correction2*2*sqrt(D(i+1)*D(i))/(dz(i)+dz(i+1))
         END DO
 
-        A(1,1) = dz(1)/deltat+2*sqrt(D(2)*D(1))/(dz(2)+dz(1))
-        A(1,2) = -2*sqrt(D(2)*D(1))/(dz(2)+dz(1))
         m  = MATuz(1)
         m1 = MATuz(2)
-        correction1 = (S(1)+S(2))/2*(par(2,m1)-par(2,m))+(2-S(1)-S(2))/2*(par(1,m1)-par(1,m))+(dern(1)+dern(2))/2*(par_n(m1)-par_n(m))
+        Da = sqrt(D(1)*D(2))
+        IF (MIM) THEN
+            IF (th0(1) < thim(1) .and. th0(2) < thim(2)) THEN
+                Da = 0
+            ENDIF
+        ENDIF
+        A(1,2) = dz(1)/deltat+2*Da/(dz(2)+dz(1))
+        A(1,3) = -2*Da/(dz(2)+dz(1))
+        correction1 = (S(1)+S(2))/2*(par(2,m1)-par(2,m))+(2-S(1)-S(2))/2*(par(1,m1)- &
+                    & par(1,m))+(dern(1)+dern(2))/2*(par_n(m1)-par_n(m))
         correction1 = correction1
         B(1) = th0(1)*dz(1)/deltat - correction1*2*sqrt(D(2)*D(1))/(dz(1)+dz(2))
-        A(Nlayer,Nlayer) = dz(Nlayer)/deltat+2*sqrt(D(Nlayer-1)*D(Nlayer))/(dz(Nlayer-1)+dz(Nlayer))
-        A(Nlayer,Nlayer-1) = -2*sqrt(D(Nlayer-1)*D(Nlayer))/(dz(Nlayer-1)+dz(Nlayer))
+        
         m = MATuz(Nlayer)
         m1 = MATuz(Nlayer-1)
-        correction1 = (S(Nlayer)+S(Nlayer-1))/2*(par(2,m1)-par(2,m))+(2-S(Nlayer)-S(Nlayer-1))/2*(par(1,m1)-par(1,m))+(dern(Nlayer)+dern(Nlayer-1))/2*(par_n(m1)-par_n(m))
+        Db = sqrt(D(Nlayer)*D(Nlayer-1))
+        IF (MIM) THEN
+            IF (th0(Nlayer) < thim(Nlayer) .and. th0(Nlayer-1) < thim(Nlayer-1)) THEN
+                Db = 0
+            ENDIF
+        ENDIF
+        A(Nlayer,2) = dz(Nlayer)/deltat+2*Db/(dz(Nlayer-1)+dz(Nlayer))
+        A(Nlayer,1) = -2*Db/(dz(Nlayer-1)+dz(Nlayer))
+        correction1 = (S(Nlayer)+S(Nlayer-1))/2*(par(2,m1)-par(2,m))+(2-S(Nlayer)-S(Nlayer-1))/2 &
+                    & *(par(1,m1)-par(1,m))+(dern(Nlayer)+dern(Nlayer-1))/2*(par_n(m1)-par_n(m))
         correction1 = correction1
-        B(Nlayer) = th0(Nlayer)*dz(Nlayer)/deltat - correction1*2*sqrt(D(Nlayer-1)*D(Nlayer))/(dz(Nlayer-1)+dz(Nlayer))
-        
+        B(Nlayer) = th0(Nlayer)*dz(Nlayer)/deltat - correction1*2*Db/(dz(Nlayer-1)+dz(Nlayer))
         !WRITE(99,"(130F10.7)") A,B,th0
         
         CALL chase(A,B,th1,Nlayer)
         
-        sum0 = 0.0_KR
-        sum1 = 0.0_KR
-        DO i = 1,Nlayer
-            sum0 = sum0+th0(i)*dz(i)
-            sum1 = sum1+th1(i)*dz(i)
-        ENDDO
+        sum0 = sum(th0(1:Nlayer)*dz(1:Nlayer))
+        sum1 = sum(th1(1:Nlayer)*dz(1:Nlayer))
         delta = sum0 - sum1
         IF (delta > Tol) THEN
             Terr = 1
@@ -378,11 +437,10 @@
                     th1(i) = par(2,m)
                     th1(i+1) = th1(i+1)+mq
                 ELSEIF (i == Nlayer) THEN
+                    mq = 0.0_KR
                     DO k=Nlayer,1,-1
                         m=MATuz(k)
-                        IF (k < Nlayer) THEN
-                            th1(k)=th1(k)+mq
-                        ENDIF
+                        th1(k)=th1(k)+mq
                         IF (th1(k)>par(2,m)) THEN
                             mq=th1(k)-par(2,m)
                             th1(k)=par(2,m)
@@ -437,9 +495,66 @@
         ENDDO    
         th = th1
         !WRITE(99,"(f7.1,130F10.7,2F10.7)")j,th,correction1,correction2
+        
+        IF (bdn==-2 .or. bdn==-1) qku = qku+(th0(Nlayer)-th1(Nlayer))*dz(Nlayer)
     ENDDO
     
     !WRITE(99,"(130F10.7)")th
+    IF (bdn == -2 .or. bdn == -1) THEN
+        Nlayer = Nlayer-1
+    ENDIF
+
+!   Calculate the water flux
+    DO i = 1,Nlayer
+        dq(i) = (thu(i)-th(i))*dz(i)
+    ENDDO
+    qchange(1,1) = 0
+    qchange(Nlayer,2) = 0
+    DO i = 1,Nlayer-1
+        qchange(i,2) = dq(i)+qchange(i,1)
+        qchange(i+1,1) = qchange(i,2)
+    ENDDO
+    qflux = qflux+qchange
+    qflux(Nlayer,2) = qflux(Nlayer,2) - qku
+    
+!    th = 3.7D-1
+    
+    IF (MIM) THEN
+        DO i = 1,Nlayer
+            m = MATuz(i)
+            thim(i) = par(2,m)*par(5,m)
+            thm(i) = th(i) - thim(i)
+            IF (thm(i) < 0) THEN
+                thm(i) = 0
+                thim(i) = th(i)
+            ENDIF
+        ENDDO
+    ENDIF
+    
+!    WRITE(99,"(130F20.14)")th
+!    WRITE(99,"(130F20.14)")qflux
+
+    !th = 0.33
+    !qflux = 2.794/240 !对应饱和土柱，溶质运移试验
+    
+!   Calculate the Courant number, and adjust dt for solute movement.
+    DO i = 1, Nlayer
+        v = abs(qflux(i,1)+qflux(i,2))/2
+        IF (MIM) THEN
+            v = v/thm(i)
+        ELSE
+            v = v/th(i)
+        ENDIF
+        Courant(i) = v/dz(i)
+    ENDDO
+    
+    Cind = ceiling(maxval(Courant)-0.05)
+    
+!    IF (Cind > 1) Cind = Cind + 1
+
+    
+    !cdt = dt
+    !Cind = 1
     
     END SUBROUTINE Water_Diff
 
@@ -459,7 +574,7 @@
     USE parm, ONLY : KI, KR, Nlayer
     
     INTEGER (kind=KI) :: N
-    REAL (kind=KR) :: A(Nlayer,Nlayer), f(Nlayer), x(Nlayer)
+    REAL (kind=KR) :: A(Nlayer,3), f(Nlayer), x(Nlayer)
     REAL (kind=KR), DIMENSION(Nlayer) :: u,b
     REAL (kind=KR), DIMENSION(Nlayer) :: y
     REAL (kind=KR), DIMENSION(Nlayer) :: L,d,c,e
@@ -473,13 +588,13 @@
     e = 0.0_KR
     
     DO i = 1,N
-        b(i) = A(i,i)
+        b(i) = A(i,2)
     ENDDO
     DO i = 1,N-1
-        c(i) = A(i,i+1)
+        c(i) = A(i,3)
     ENDDO
     DO i = 2,N
-        e(i) = a(i,i-1)
+        e(i) = A(i,1)
     ENDDO
     
     DO i = 1,N-1

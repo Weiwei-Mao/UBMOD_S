@@ -50,11 +50,12 @@
     OPEN(33,file=datapath(1:lengthpath)//'/Selector.in', status='old',err=902)
     OPEN(32,file=datapath(1:lengthpath)//'/Profile.in' , status='old',err=902)
 !   output files
-    OPEN(90,file=datapath(1:lengthpath)//'/Runtime.out'  ,status='unknown',err=903) ! Run time.
-    OPEN(80,file=datapath(1:lengthpath)//'/A_Level.out'  ,status='unknown',err=903) ! Node data.
-    OPEN(89,file=datapath(1:lengthpath)//'/Balance1d.out',status='unknown',err=903) ! Statistic boundary condition.
-    OPEN(81,file=datapath(1:lengthpath)//'/TPrint.out'   ,status='unknown',err=903) 
-    OPEN(99,file=datapath(1:lengthpath)//'/Error.out'    ,status='unknown',err=903) ! Error message.
+    OPEN(80,file=datapath(1:lengthpath)//'/Obsnode.out' ,status='unknown',err=903) ! Observation.
+    OPEN(81,file=datapath(1:lengthpath)//'/TPrint.out'  ,status='unknown',err=903) ! Profile results.
+    OPEN(89,file=datapath(1:lengthpath)//'/A_Level.out' ,status='unknown',err=903) ! Accumulated results.
+    OPEN(90,file=datapath(1:lengthpath)//'/Runtime.out' ,status='unknown',err=903) ! Run time.
+    OPEN(91,file=datapath(1:lengthpath)//'/Balance.out' ,status='unknown',err=903) ! Mass Balance.
+    OPEN(99,file=datapath(1:lengthpath)//'/Error.out'   ,status='unknown',err=903) ! Error message.
 ! ====================================================================
       
 !-----Begin of the program.
@@ -62,7 +63,7 @@
 !     subroutine about input information.
 !     call for basic information. 
     CALL Selector_In
-    IF (Terr.ne.0) GOTO (905, 906, 907, 908) Terr
+    IF (Terr.ne.0) GOTO (905, 906, 907, 908, 920, 921, 922) Terr
 !     call for node information in 1D.
     CALL Profile_In
     IF (Terr.ne.0) GOTO 909
@@ -105,7 +106,7 @@
 !     Secondly, advective movement driven by gravitational potential.
 !       "Tipping-bucket" method.
     CALL Water_Redis
-    IF (Terr.ne.0) GOTO (930) Terr
+    IF (Terr.ne.0) GOTO (930, 933) Terr
 
 ! ====================================================================
 !     Thirdly, source/sink term.
@@ -117,6 +118,36 @@
 !     Last, Diffusive soil water movement driven by matric potential.
     CALL Water_Diff
     IF (Terr.ne.0) GOTO (932) Terr
+    
+    IF (lChem .and. Cind > 1) THEN
+        th = tht
+        t = t - dt
+        ct = t + dt
+        Cind = Cind
+        dt = dt/Cind
+        index = Cind
+        GOTO 100
+    ENDIF
+
+!---Solute transport module.
+! ====================================================================
+    IF (lChem) THEN
+!   1st, the solute convection
+        CALL Solute_Conv
+
+!   2nd, the solute source/sink term
+        CALL Solute_Sour
+
+!   3nd, the exchange between mobile and immobile regions.
+        IF (MIM) THEN
+            CALL Solute_Exch
+        ELSE
+            Conc3 = Conc2
+        ENDIF
+    
+!   4th, the diffusive term driven by concentration difference.
+        CALL Solute_DiffD
+    ENDIF
 
 ! ====================================================================
 !     Output control.
@@ -159,19 +190,20 @@
     
 200 CALL CPU_time (t2)
     WRITE(90,*,err=914)'Real time [sec]',t2-t1
-    CLOSE(90)
+
     CLOSE(80) 
-    CLOSE(89) 
-    CLOSE(81)
-    CLOSE(88)
-    CLOSE(98)
+    CLOSE(81) 
+    CLOSE(89)
+    CLOSE(90)
+    CLOSE(91)
     CLOSE(99)
     CLOSE(110) 
     CLOSE(130)
     CLOSE(150) 
 
     STOP
-    
+
+! Input or output error.
 901 ierr=1
     GOTO 999
 902 ierr=2
@@ -210,11 +242,23 @@
     GOTO 999
 919 ierr=19
     GOTO 999
+! Data check error
+920 ierr=20
+    GOTO 999
+921 ierr=21
+    GOTO 999
+922 ierr=22
+    GOTO 999
+923 ierr=23
+    GOTO 999
+    
 930 ierr=30
     GOTO 999
 931 ierr=31
     GOTO 999
 932 ierr=32
+    GOTO 999
+933 ierr=33
     GOTO 999
 
 999 CALL Error_Out(ierr)
@@ -246,10 +290,15 @@
     cErr(16)='Error when writing to the output file Balance.out !'
     cErr(17)='Error when writing to the output file TPrint.out !'
     cErr(18)='Error when writing to the output file eta.dat !'
-    cErr(19)='Dimension of the Array is exceeded !'
+    ! 
+    cErr(20)='Input option is wrong !'
+    cErr(21)='Dimension of the Array is exceeded !'
+    cErr(22)='The soil water hydraulic parameters is wrong !'
+    
     cErr(30)='Mass balance error in Water_Redis module !'
     cErr(31)='Mass balance error in Water_SetET module !'
     cErr(32)='Mass balance error in Water_Diff module !'
+    cErr(32)='Too much infiltration water in Water_Redis module !'
     
     WRITE(*,*) cErr(ierr)
     WRITE(99,*) cErr(ierr)

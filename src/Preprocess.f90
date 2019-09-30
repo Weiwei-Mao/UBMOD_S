@@ -19,18 +19,18 @@
     USE parm
     IMPLICIT NONE
     
-    voluz = 0.0_KR
-    qairt = 0.0_KR
-    qbtmt = 0.0_KR
-    CumE  = 0.0_KR
-    CumT  = 0.0_KR
-    sinkt = 0.0_KR
-    sink1d = 0.0_KR
+    voluz  = 0.0_KR
+    qairt  = 0.0_KR
+    qirrt  = 0.0_KR
+    qbtmt  = 0.0_KR
+    CumE   = 0.0_KR
+    CumT   = 0.0_KR
+    sinkt  = 0.0_KR
 !   Solute
-    Svoluz  = 0.0_KR
-	Sup     = 0.0_KR
-	Sdn     = 0.0_KR
-	Ssinkt  = 0.0_KR
+    Svoluz   = 0.0_KR
+	Sup      = 0.0_KR
+	Sdn      = 0.0_KR
+	Ssinkt   = 0.0_KR
     Smvoluz  = 0.0_KR
     Simvoluz = 0.0_KR
 
@@ -52,10 +52,6 @@
         ENDIF
     ELSE
         voluz = sum(th(1:Nlayer)*dz(1:Nlayer))
-        IF (bdn == -1) THEN
-            voluz = sum(th(1:Nlayer-1)*dz(1:Nlayer-1))
-        ENDIF
-        
         IF (lchem) THEN
             Svoluz = sum(thini(1:Nlayer)*dz(1:Nlayer)*Concini(1:Nlayer))
             IF (bdn == -1) THEN
@@ -70,7 +66,7 @@
     RETURN
     
 901 Terr=1
-    RETURN    
+    RETURN
     END SUBROUTINE Balance_Initial
 
 ! ====================================================================
@@ -92,66 +88,65 @@
     USE parm
     IMPLICIT NONE
     
-    INTEGER (KIND=KI) :: m, i
+    INTEGER (KIND=KI) :: m
     
-    DO i = 1,Nlayer
-        m = MATuz(i)
+    DO m = 1,NMat
         ! Curve fitting.
         IF (Dfit == 1) THEN ! quadratic curve, Dfit>0, theta
-            Intercept(m) = -2.9602*log10(par(5,m))**2-0.6179*log10(par(5,m))-4.2946
-            Slope(m) = 9.4519*log10(par(5,m))**2+6.6871*log10(par(5,m))+11.115
+            Intercept(m) = -2.9602_KR*log10(par(5,m))**2-0.6179_KR*log10(par(5,m))-4.2946_KR
+            Slope(m) = 9.4519_KR*log10(par(5,m))**2+6.6871_KR*log10(par(5,m))+11.115_KR
         ELSEIF (Dfit == 2) THEN ! first segmentation fitting
             IF (log10(par(5,m))>=-0.99866) THEN
-                Intercept(m) = -0.6245*log10(par(5,m))**2-0.4761*log10(par(5,m))-5.2872
+                Intercept(m) = -0.6245_KR*log10(par(5,m))**2-0.4761_KR*log10(par(5,m))-5.2872_KR
             ELSE
-                Intercept(m) = 9.8771*log10(par(5,m))+4.4293
+                Intercept(m) = 9.8771_KR*log10(par(5,m))+4.4293_KR
             ENDIF
             IF (log10(par(5,m))>=-0.99866) THEN
-                Slope(m) = 1.6683*log10(par(5,m))**2+6.0643*log10(par(5,m))+14.49
+                Slope(m) = 1.6683_KR*log10(par(5,m))**2+6.0643_KR*log10(par(5,m))+14.49_KR
             ELSE
-                Slope(m) = -27.225*log10(par(5,m))-17.452
+                Slope(m) = -27.225_KR*log10(par(5,m))-17.452_KR
             ENDIF                
         ELSEIF (Dfit == 3) THEN ! second segmentation fitting
             IF (log10(par(5,m))>=-0.9896858) THEN
-                Intercept(m) = 0.8771*log10(par(5,m))**2+1.0098*log10(par(5,m))-5.0988
+                Intercept(m) = 0.8771_KR*log10(par(5,m))**2+1.0098_KR*log10(par(5,m))-5.0988_KR
             ELSE
-                Intercept(m) = 9.8771*log10(par(5,m))+4.4293
+                Intercept(m) = 9.8771_KR*log10(par(5,m))+4.4293_KR
             ENDIF
             IF (log10(par(5,m))>=-0.9990038) THEN
-                Slope(m) = -3.9735*log10(par(5,m))**2+0.0609*log10(par(5,m))+13.489
+                Slope(m) = -3.9735_KR*log10(par(5,m))**2+0.0609_KR*log10(par(5,m))+13.489_KR
             ELSE
-                Slope(m) = -27.225*log10(par(5,m))-17.452
+                Slope(m) = -27.225_KR*log10(par(5,m))-17.452_KR
             ENDIF
         ELSEIF (Dfit == -1) THEN ! quadratic curve, Dfit<0, S
-            Slope(m) = 2.8657*log10(par(5,m))**2+2.5014*log10(par(5,m))+4.2306
-            Intercept(m) = -2.4228*log10(par(5,m))**2-0.4907*log10(par(5,m))-3.5813
+            Slope(m) = 2.8657_KR*log10(par(5,m))**2+2.5014_KR*log10(par(5,m))+4.2306_KR
+            Intercept(m) = -2.4228_KR*log10(par(5,m))**2-0.4907_KR*log10(par(5,m))-3.5813_KR
         ELSEIF (Dfit == -2) THEN ! segmentation fitting, without amendment, left 6, right 6
             IF (log10(par(5,m))>=-1.004802) THEN
-                Intercept(m) = -0.9483*log10(par(5,m))**2-0.4217*log10(par(5,m))-4.1855
+                Intercept(m) = -0.9483_KR*log10(par(5,m))**2-0.4217_KR*log10(par(5,m))-4.1855_KR
             ELSE
-                Intercept(m) = 7.8942*log10(par(5,m))+3.2129
+                Intercept(m) = 7.8942_KR*log10(par(5,m))+3.2129_KR
             ENDIF
             IF (log10(par(5,m))>=-1.016789) THEN
-                Slope(m) = 1.6523*log10(par(5,m))**2+2.5041*log10(par(5,m))+4.961
+                Slope(m) = 1.6523_KR*log10(par(5,m))**2+2.5041_KR*log10(par(5,m))+4.961_KR
             ELSE
-                Slope(m) = -7.2474*log10(par(5,m))-3.511
+                Slope(m) = -7.2474_KR*log10(par(5,m))-3.511_KR
             ENDIF
         ELSEIF (Dfit == -3) THEN
             IF (log10(par(5,m))>=-0.8989257) THEN
-                Intercept(m) = 0.12*log10(par(5,m))**2+0.511*log10(par(5,m))-4.1381
+                Intercept(m) = 0.12_KR*log10(par(5,m))**2+0.511_KR*log10(par(5,m))-4.1381_KR
             ELSE
-                Intercept(m) = 5.2687*log10(par(5,m))+0.2358
+                Intercept(m) = 5.2687_KR*log10(par(5,m))+0.2358_KR
             ENDIF
             IF (log10(par(5,m))>=-0.9171914) THEN
-                Slope(m) = -0.4014*log10(par(5,m))**2+0.5861*log10(par(5,m))+4.518
+                Slope(m) = -0.4014_KR*log10(par(5,m))**2+0.5861_KR*log10(par(5,m))+4.518_KR
             ELSE
-                Slope(m) = -4.8045*log10(par(5,m))-0.7639
+                Slope(m) = -4.8045_KR*log10(par(5,m))-0.7639_KR
             ENDIF
         ENDIF       
 
         ! par_n(m) = 15.812*thf(m)**2-10.416*thf(m)+2.8891
         ! par_n(m) = 0.1671*log10(par(5,m))**2+0.7103*log10(par(5,m))+1.8925
-        par_n(m) = 0.9509*exp(0.72223*log10(par(5,m)))+0.9
+        par_n(m) = 0.9509_KR*exp(0.72223_KR*log10(par(5,m)))+0.9_KR
 
     ENDDO
     
@@ -174,13 +169,13 @@
 ! ==================================================================== 
     SUBROUTINE Upper_Boundary(datapath)
     USE parm
-    CHARACTER (LEN=8) :: DDate
+    IMPLICIT NONE
     CHARACTER (LEN=100) :: datapath
-    INTEGER (KIND=4) :: lenpath
-    INTEGER (KIND=KI) :: Jd0
+    INTEGER (KIND=4) :: lenpath, i, j
+    REAL (KIND=KR) :: Nouse
 
     lenpath = Len_Trim(datapath)
-    IF (bup == 1) THEN  
+    IF (bup > 0) THEN
         CALL Etp(1,datapath)
         IF (Terr.ne.0) RETURN
         OPEN(110,file=datapath(1:lenpath)//'/'//'01.et0',status='old',err=901)
@@ -199,20 +194,107 @@
         ENDDO
         precip(2,:) = precip(2,:)/1000_KI
         Evatra = Evatra/1000_KI
-        
-    ELSEIF (bup == 2) THEN
+        CLOSE(110)
+        CLOSE(130)
+
+    ELSEIF (bup == 0) THEN
         OPEN(120,file=datapath(1:lenpath)//'/'//'met.in',status='old',err=903)
         READ(120,*,err=903)
-        READ(120,*,err=903)Nup,Ndn
+        READ(120,*,err=903)Nup
         READ(120,*,err=903)
+        IF (.NOT. ALLOCATED(up)) ALLOCATE(up(2,Nup))
         READ(120,*,err=903)(up(1,i),i=1,Nup)
         READ(120,*,err=903)
         READ(120,*,err=903)(up(2,i),i=1,Nup)
+        DO i = 1,Nup
+            up(1,i) = up(1,i)/tConv
+            up(2,i) = up(2,i)/xConv
+        ENDDO
+
+    ELSEIF (bup < 0) THEN
+        CALL Etp(1,datapath)
+        IF (Terr.ne.0) RETURN
+        OPEN(110,file=datapath(1:lenpath)//'/'//'01.et0',status='old',err=901)
+        READ(110,*,err=901)
+        OPEN(130,file=datapath(1:lenpath)//'/'//'01.eti',status='old',err=901)
+        OPEN(150,file=datapath(1:lenpath)//'/'//'eta.dat',status='unknown',err=902)
+        WRITE(150,*,err=902)"Variables=DoY,   Ea,   Ta,   Date"
+        READ(130,*,err=901)
+        IF (.NOT. ALLOCATED(precip)) ALLOCATE(precip(2,MaxAL))
+        IF (.NOT. ALLOCATED(Evatra)) ALLOCATE(Evatra(2*Nlayer,MaxAL))
+        DO i = 1,MaxAL
+            READ(110,*,err=901) Nouse,precip(1,i),Nouse,Nouse,Nouse,precip(2,i)
+            READ(130,*,err=901) Nouse,Nouse,(Evatra(j,i),j=1,2*Nlayer)
+        ENDDO
+        precip(2,:) = precip(2,:)/1000_KI
+        Evatra = Evatra/1000_KI
+        CLOSE(110)
+        CLOSE(130)
+    
+        OPEN(120,file=datapath(1:lenpath)//'/'//'met.in',status='old',err=903)
         READ(120,*,err=903)
-        READ(120,*,err=903)(dn(1,i),i=1,Ndn)
+        READ(120,*,err=903)Nup
+        READ(120,*,err=903)
+        IF (.NOT. ALLOCATED(up)) ALLOCATE(up(2,Nup))
+        READ(120,*,err=903)(up(1,i),i=1,Nup)
+        READ(120,*,err=903)
+        READ(120,*,err=903)(up(2,i),i=1,Nup)
+        DO i = 1,Nup
+            up(1,i) = up(1,i)/tConv
+            up(2,i) = up(2,i)/xConv
+        ENDDO
+    ENDIF
+    
+!   Lower boundary condition
+!   Given lower soil water content.
+    IF (bdn == -1) THEN
+        IF (bup > 0) OPEN(120,file=datapath(1:lenpath)//'/'//'met.in',status='old',err=903)
+        READ(120,*,err=903)
+        READ(120,*,err=903)Ndn
+        READ(120,*,err=903)
+        IF (.NOT. ALLOCATED(dn)) ALLOCATE(up(2,Ndn))
+        READ(120,*,err=903)(dn(1,i),i=1,Ndn)   !
         READ(120,*,err=903)
         READ(120,*,err=903)(dn(2,i),i=1,Ndn)
+        DO i = 1,Ndn
+            dn(1,i) = dn(1,i)/tConv
+        ENDDO
+!   Given groundwater table depth.
+    ELSEIF (bdn == -2) THEN
+        IF (bup > 0) OPEN(120,file=datapath(1:lenpath)//'/'//'met.in',status='old',err=903)
+        READ(120,*,err=903)
+        READ(120,*,err=903) gdep
+        gdep = gdep/xConv
     ENDIF
+    
+!   Solute boundary condition
+    IF (lchem) THEN
+        IF (bup > 0) OPEN(120,file=datapath(1:lenpath)//'/'//'met.in',status='old',err=903)
+        READ(120,*,err=903)
+        READ(120,*,err=903)CNup
+        READ(120,*,err=903)
+        IF (.NOT. ALLOCATED(Cup)) ALLOCATE(up(2,CNup))
+        READ(120,*,err=903)(Cup(1,i),i=1,CNup)
+        READ(120,*,err=903)
+        READ(120,*,err=903)(Cup(2,i),i=1,CNup)
+        DO i = 1,CNup
+            Cup(1,i) = Cup(1,i)/tConv
+            Cup(2,i) = Cup(2,i)*xConv**3/mConv
+        ENDDO
+        READ(120,*,err=903)
+        READ(120,*,err=903)CNdn
+        READ(120,*,err=903)
+        IF (.NOT. ALLOCATED(Cdn)) ALLOCATE(up(2,CNdn))
+        READ(120,*,err=903)(Cdn(1,i),i=1,CNup)
+        READ(120,*,err=903)
+        READ(120,*,err=903)(Cdn(2,i),i=1,CNup)
+        DO i = 1,CNdn
+            Cdn(1,i) = Cdn(1,i)/tConv
+            Cdn(2,i) = Cdn(2,i)*xConv**3/mConv
+        ENDDO
+    ENDIF
+    CLOSE(120)
+
     RETURN
     
 901 Terr=3
@@ -230,17 +312,108 @@
 ! ====================================================================
     SUBROUTINE Set_Input
     USE parm
-    INTEGER (kind=KI) :: k, kk
+    IMPLICIT NONE
+    INTEGER (KIND=KI) :: k, kk, i, m
+    REAL (KIND=KR) :: rc, gdepold
+    REAL (KIND=KR), DIMENSION(Nlayer) :: tho
     
-    IF (bup == 1) THEN
+    IF (bup > 0) THEN
 
         CALL FindY_Step(MaxAL,t,qair,precip,k)
+        qirr = 0.0_KR
         Epi(1:Nlayer) = Evatra(1:NLayer,k)
         Tri(1:Nlayer) = Evatra(NLayer+1:2*Nlayer,k)
         tAtm = k
+        
+        IF (lchem) THEN
+            Concup = 0.0_KR
+            CALL FindY_Step(CNdn,t,Concdn,Cdn,kk)
+        ENDIF
 
-    ELSEIF (bup == 2) THEN
-        CALL FindY_Step(Nup,t,qair,up,k)
+    ELSEIF (bup == 0) THEN
+        qair = 0.0_KR
+        CALL FindY_Step(Nup,t,qirr,up,k)
+        IF (lchem) THEN
+            CALL FindY_Step(CNup,t,Concup,Cup,kk)
+            CALL FindY_Step(CNdn,t,Concdn,Cdn,kk)
+        ENDIF
+        
+    ELSEIF (bup < 0) THEN
+        CALL FindY_Step(MaxAL,t,qair,precip,k)
+        CALL FindY_Step(Nup,t,qirr,up,kk)
+        Epi(1:Nlayer) = Evatra(1:NLayer,k)
+        Tri(1:Nlayer) = Evatra(NLayer+1:2*Nlayer,k)
+        tAtm = k
+        
+        IF (lchem) THEN
+            CALL FindY_Step(CNup,t,Concup,Cup,kk)
+            CALL FindY_Step(CNdn,t,Concdn,Cdn,kk)
+        ENDIF
+    ENDIF
+    
+    IF (bdn == -1) THEN
+        CALL FindY_Step(Ndn,t,dth,dn,kk)
+    ELSEIF (bdn == -2) THEN
+        IF (Tlevel == 1) THEN
+            Wlayer = Nlayer
+        ELSE
+            rc = qflux(Nlayer,2) !!!
+            IF (rc >= 0) THEN    ! Unsaturated zone to saturated zone, groundwater table upward.
+                tho = th
+                DO i = Nlayer,1,-1
+                    m = MATuz(i)
+                    tho(i) = th(i) + rc/dz(i)
+                    IF (tho(i) > par(2,m)) THEN
+                        rc = (tho(i)-par(2,m))*dz(i)
+                        tho(i) = par(2,m)
+                    ELSE
+                        gdep = gdep-sum(dz(i:Nlayer))+(dz(i)-rc/(par(2,m)-th(i)))
+                        EXIT
+                    ENDIF
+                ENDDO
+            ELSE
+                gdepold = gdep
+                DO i = Nlayer+1,Wlayer
+                    m = MATuz(i)
+                    tho(i) = par(2,m) + rc/dz(i)
+                    IF (tho(i) < thF(m)) THEN
+                        rc = rc + (par(2,m)-thF(m))*dz(i)
+                        tho(i) = thF(m)
+                    ELSE
+                        gdep = gdep+sum(dz(Nlayer+1:i))-(dz(i)+rc/(par(2,m)-thF(m)))
+                        exit
+                    ENDIF
+                ENDDO
+                ! Adjust dz and th
+                IF (gdep > zx(Nlayer) .and. gdep < zx(Nlayer+1)) THEN
+                    m = matUZ(Nlayer)
+                    th(Nlayer) = (th(Nlayer)*dz(Nlayer)+thF(m)*(gdep-gdepold)+par(2,m)*(zx(Nlayer+1)-gdep))/(zx(Nlayer+1)-zx(Nlayer))
+                    dz(Nlayer) = zx(Nlayer+1)-zx(Nlayer)
+                ELSE
+                    m = matUZ(Nlayer)
+                    th(Nlayer) = (th(Nlayer)*dz(Nlayer)+par(2,m)*(zx(Nlayer+1)-zx(Nlayer)-dz(Nlayer)))/(zx(Nlayer+1)-zx(Nlayer))
+                    dz(Nlayer) = zx(Nlayer+1)-zx(Nlayer)
+                    DO i = Nlayer+1,Wlayer
+                        m = matUZ(i)
+                        th(i) = thF(m)
+                    ENDDO
+                ENDIF
+            ENDIF
+        ENDIF
+        
+        IF (gdep > maxval(zx)) THEN
+            WRITE(*,*) "The groundwater is too deep!"
+            PAUSE
+            STOP
+        ENDIF
+        
+        DO i = 1,Wlayer
+            IF (zx(i) < gdep .and. zx(i+1) >= gdep) THEN
+                Nlayer = i
+            ENDIF
+        ENDDO
+        dz(Nlayer) = gdep - zx(Nlayer)
+        dz(Nlayer+1) = dz(Nlayer-1)
     ENDIF
    
     END SUBROUTINE Set_Input

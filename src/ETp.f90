@@ -31,16 +31,14 @@
     USE parm
     IMPLICIT NONE
 
-    REAL (KIND=KR), DIMENSION(Nlayer) :: dz1  
-    REAL (KIND=KR), DIMENSION(Nlayer) :: sed   
-    REAL (KIND=KR), DIMENSION(Nlayer) :: dense 
-    REAL (KIND=KR), DIMENSION(21) :: crpdat 
-    REAL (KIND=KR), DIMENSION(130) :: work
     CHARACTER (LEN=6) :: cha1, cha2, cha3
     CHARACTER (LEN=8) :: date1
     CHARACTER (LEN=8), DIMENSION(5) :: da
     CHARACTER (LEN=100) :: datapath
     INTEGER (KIND=4) :: i,j,k,jj,num,lenpath
+    REAL (KIND=KR), DIMENSION(Nlayer) :: dz1,sed,dense
+    REAL (KIND=KR), DIMENSION(21) :: crpdat 
+    REAL (KIND=KR), DIMENSION(130) :: work
     REAL (KIND=KR) :: ET0, EP, TP, Nouse, rd, dtp
 
     lenpath = Len_Trim(datapath)
@@ -54,24 +52,27 @@
         dz1(i)=zx(i+1)  
     ENDDO
 
-    CALL Crop(datapath,num,numc,date1,MaxAL)
-    IF (Terr.ne.0) RETURN
-    CALL ep_tp(datapath,num,date1,MaxAL,AtmBC)
+    IF (lCrop) THEN
+        CALL Crop(datapath,num,numc,date1,MaxAL)
+        IF (Terr.ne.0) RETURN
+    ENDIF
+    CALL ep_tp(datapath,num,date1,MaxAL,IfPM)
     IF (Terr.ne.0) RETURN
 
     WRITE(cha1(1:2),"(i2.2)")num
-    WRITE(cha2(1:2),"(i2.2)")num
     WRITE(cha3(1:2),"(i2.2)")num
     OPEN(4,file=datapath(1:lenpath)//'/'//cha1,status="unknown",err=901)
-    OPEN(5,file=datapath(1:lenpath)//'/'//cha2,status="unknown",err=901)
     OPEN(6,file=datapath(1:lenpath)//'/'//cha3,status="unknown",err=901)
     WRITE(6,*,err=901)"date ordinal Es(1:Nlayer)/mm    TS(1:Nlayer)/mm"
     READ(4,*,err=901)cha1
-    READ(5,*,err=901)cha1
+    IF (lCrop) THEN
+        WRITE(cha2(1:2),"(i2.2)")num
+        OPEN(5,file=datapath(1:lenpath)//'/'//cha2,status="unknown",err=901)
+        READ(5,*,err=901)cha1
+    ENDIF
 
     DO j=1,MaxAL
         READ(4,*,err=901)date1,Nouse,ET0,Ep,Tp
-        READ(5,*,err=901)Nouse,Nouse,rd            
 
         dtp=max(0.05*ET0, 0.05)
         dtp=dtp/4.
@@ -79,22 +80,30 @@
           work(jj)=sp(jj,num)
         ENDDO
         CALL Fdense(Nlayer,dz1,dtp,work,sed,4)
-
-        CALL cdatebase(datapath,numc,da,crpdat)
-        IF (Terr.ne.0) RETURN
-        DO jj=1,10
-            work(jj)=crpdat(jj+10)
-        ENDDO
-        ptab = crpdat(21)     
-        CALL Fdense(Nlayer,dz1,0.1*rd,work,dense,10)     
+        
+        IF (lCrop) THEN
+            READ(5,*,err=901)Nouse,Nouse,rd
+            
+            CALL cdatebase(datapath,numc,da,crpdat)
+            IF (Terr.ne.0) RETURN
+            DO jj=1,10
+                work(jj)=crpdat(jj+10)
+            ENDDO
+            ptab = crpdat(21)     
+            CALL Fdense(Nlayer,dz1,0.1*rd,work,dense,10)
+        ENDIF
         DO k=1,Nlayer
             sed(k)=sed(k)*ep
-            dense(k)=dense(k)*tp
+            IF (lCrop) THEN
+                dense(k)=dense(k)*tp
+            ELSE
+                dense(k)=0.0_KR
+            ENDIF
         ENDDO
         WRITE(6,"(A9,I6,260f6.3)",err=901)date1,i,sed(1:Nlayer),dense(1:Nlayer)
     ENDDO
     CLOSE(4)
-    CLOSE(5) 
+    IF (lCrop) CLOSE(5)
     CLOSE(6)
     RETURN
     
@@ -120,11 +129,11 @@
 ! =========================related functions==========================
 !   None.
 ! ====================================================================
-    SUBROUTINE ep_tp(datapath,num,dateini,interval,AtmBC)
-    USE parm, ONLY : KR, KI, Terr
+    SUBROUTINE ep_tp(datapath,num,dateini,interval,IfPM)
+    USE parm, ONLY : KR, KI, Terr, lCrop
     IMPLICIT NONE
     
-    LOGICAL (KIND=4) :: AtmBC
+    LOGICAL (KIND=4) :: IfPM
     CHARACTER (LEN=6) :: cha1, cha2, cha3
     CHARACTER (LEN=8) :: dateini
     CHARACTER (LEN=100) :: datapath
@@ -137,46 +146,82 @@
     REAL (KIND=KR) :: aa, ckc, claif, etc, ep, tp
 
     lenpath = Len_Trim(datapath)
-    cha1="??.wea"
-    cha2="??.et0"
-    cha3="??.crp"
-    WRITE(cha1(1:2),"(i2.2)")num
-    WRITE(cha2(1:2),"(i2.2)")num
-    WRITE(cha3(1:2),"(i2.2)")num
-    OPEN(1,file=datapath(1:lenpath)//'/'//cha1,status="old",err=901)
-    OPEN(3,file=datapath(1:lenpath)//'/'//cha3,status="old",err=902)
-    OPEN(2,file=datapath(1:lenpath)//'/'//cha2,status="unknown",err=902)
-    WRITE(2,*)"year month day ordinal et0 ep tp	pe"
-    read(3,*,err=902) !/lai and kc/
-    
-    IF (AtmBC) THEN
-        read(1,*,err=901)
-        read(1,*,err=901)fai,hhh,hu
-        read(1,*,err=901)
-    ELSE
-        read(1,*,err=901)
-    ENDIF
-		
-    DO i=1,interval
-        IF (AtmBC) THEN
-            READ(1,*,err=901)year,month,day,tmean,tmax,tmin,nact,rhmean,uh,ato_p,PE
-            CALL Refet(year,month,day,Tmean,tmax,tmin,nact,RHmean,uh,hu,ato_p,hhh,fai,ET0,tmean1)
-        ELSEIF (.not.AtmBC) THEN
-            READ(1,*,err=901)year,month,day,et0,PE
-        ENDIF
 
-        READ(3,*,err=902)aa,aa,ckc,aa,aa,CLAif
-        ETc=ckc*ET0 
+    IF (lCrop) THEN
+        cha1="??.wea"
+        cha2="??.et0"
+        cha3="??.crp"
+        WRITE(cha1(1:2),"(i2.2)")num
+        WRITE(cha2(1:2),"(i2.2)")num
+        WRITE(cha3(1:2),"(i2.2)")num
+        OPEN(1,file=datapath(1:lenpath)//'/'//cha1,status="old",err=901)
+        OPEN(3,file=datapath(1:lenpath)//'/'//cha3,status="old",err=902)
+        OPEN(2,file=datapath(1:lenpath)//'/'//cha2,status="unknown",err=902)
+        WRITE(2,*)"year month day ordinal et0 ep tp	pe"
+        read(3,*,err=902) !/lai and kc/
         
-!        CLAIF = 0.25    !2017-06-02
+        IF (IfPM) THEN
+            read(1,*,err=901)
+            read(1,*,err=901)fai,hhh,hu
+            read(1,*,err=901)
+        ELSE
+            read(1,*,err=901)
+        ENDIF
+	    	
+        DO i=1,interval
+            IF (IfPM) THEN
+                READ(1,*,err=901)year,month,day,tmean,tmax,tmin,nact,rhmean,uh,ato_p,PE
+                CALL Refet(year,month,day,Tmean,tmax,tmin,nact,RHmean,uh,hu,ato_p,hhh,fai,ET0,tmean1)
+            ELSEIF (.not.IfPM) THEN
+                READ(1,*,err=901)year,month,day,et0,PE
+            ENDIF
+      
+            READ(3,*,err=902)aa,aa,ckc,aa,aa,CLAif
+            ETc=ckc*ET0 
+            
+!            CLAIF = 0.25    !2017-06-02
+            
+            Ep=cLAIf*ETc    !CLAI exp[-f*LAI]
+            Tp=ETc-Ep 
+            WRITE(2,"(i4,i2.2,i2.2,i6,4f8.3)",err=902)year,month,day,i,et0,ep,tp,PE
+        ENDDO
         
-        Ep=cLAIf*ETc    !CLAI exp[-f*LAI]
-        Tp=ETc-Ep 
-        WRITE(2,"(i4,i2.2,i2.2,i6,4f8.3)",err=902)year,month,day,i,et0,ep,tp,PE
-    ENDDO
-    CLOSE(1)
-    CLOSE(2)
-    CLOSE(3)
+        CLOSE(1)
+        CLOSE(2)
+        CLOSE(3)
+    ELSE
+        cha1="??.wea"
+        cha2="??.et0"
+        WRITE(cha1(1:2),"(i2.2)")num
+        WRITE(cha2(1:2),"(i2.2)")num
+        OPEN(1,file=datapath(1:lenpath)//'/'//cha1,status="old",err=901)
+        OPEN(2,file=datapath(1:lenpath)//'/'//cha2,status="unknown",err=902)
+        WRITE(2,*)"year month day ordinal et0 ep tp	pe"
+        
+        IF (IfPM) THEN
+            read(1,*,err=901)
+            read(1,*,err=901)fai,hhh,hu
+            read(1,*,err=901)
+        ELSE
+            read(1,*,err=901)
+        ENDIF
+        
+        DO i=1,interval
+            IF (IfPM) THEN
+                READ(1,*,err=901)year,month,day,tmean,tmax,tmin,nact,rhmean,uh,ato_p,PE
+                CALL Refet(year,month,day,Tmean,tmax,tmin,nact,RHmean,uh,hu,ato_p,hhh,fai,ET0,tmean1)
+            ELSEIF (.not.IfPM) THEN
+                READ(1,*,err=901)year,month,day,et0,PE
+            ENDIF
+
+            Ep=ET0
+            Tp=0.0_KR 
+            WRITE(2,"(i4,i2.2,i2.2,i6,4f8.3)",err=902)year,month,day,i,et0,ep,tp,PE
+        ENDDO
+        
+        CLOSE(1)
+        CLOSE(2)
+    ENDIF
     RETURN
     
 901 Terr=1
@@ -208,14 +253,14 @@
     USE parm, ONLY : KR, KI, Terr
     IMPLICIT NONE
 
-    CHARACTER (len=8) :: Dateini, Date, Date1     ! Beginning time
+    CHARACTER (len=8) :: Dateini, Date, Date1, Db
     CHARACTER (len=8), DIMENSION(5) :: da
     CHARACTER (len=6) :: nameF
     CHARACTER (len=10) :: cha1
     CHARACTER (LEN=100) :: datapath
     INTEGER (kind=KI) interval	! the simulation period
     INTEGER (KIND=4), DIMENSION(5) :: jd
-    INTEGER (KIND=4) :: numc, nyear, nyear1, ndyear, JDATE, jd1, jmax, nyrr
+    INTEGER (KIND=4) :: numc, nyear, nyear1, ndyear, JDATE, jd1, jmax, nyrr, dd, ifrun
     REAL (KIND=KR), DIMENSION(21) :: crpdat
     REAL (KIND=KR) :: f, ckc1, ckc2, ckc3, rd1, rd2, clai1, clai2, clai3, clai4
     REAL (KIND=KR) :: ckc, rd, clai, claif
@@ -240,6 +285,7 @@
     clai3=crpdat(9)
     clai4=crpdat(10)
 
+    ! Reset the year of the dataset to the calculation year.
     READ(da(1)(1:4),"(i4)")nyear
     READ(Dateini(1:4),"(i4)")nyear1
     ndyear=nyear1-nyear
@@ -283,12 +329,51 @@
         CALL dateadd(date,1,date1)
         date=date1
         jd1=jd1+1
-        jmax=jdate(dateini)+interval-1 ! the maximum day number
-
+        
+        ! If the calculation date is out of the database range !
+        jmax=jd(5) ! the maximum day number
         IF (jd1>jmax) THEN
-            nyrr=int((jd1-jmax)/365)+1
-            jd1=jd1-365*Nyrr
-        ENDIF
+            READ(da(1)(1:4),"(i4)")nyear
+            READ(da(5)(1:4),"(i4)")nyear1
+            IF (nyear == nyear1) THEN
+                IF (ifrun(nyear) == 0) THEN
+                    nyrr = 365
+                ELSE
+                    Db = da(1)
+                    WRITE(Db(5:8),"(i4)")0229
+                    dd = Jdate(Db)
+                    IF (jd(1)>dd) THEN
+                        nyrr = 365
+                    ELSE
+                        nyrr = 366
+                    ENDIF
+                ENDIF
+            ELSE
+                IF ((ifrun(nyear)==0) .and. (ifrun(nyear+1)==0)) THEN
+                    nyrr = 365
+                ELSEIF (ifrun(nyear)==1) THEN
+                    Db = da(1)
+                    WRITE(Db(5:8),"(i4)")0229
+                    dd = Jdate(Db)
+                    IF (jd(1)>dd) THEN
+                        nyrr = 365
+                    ELSE
+                        nyrr = 366
+                    ENDIF
+                ELSE
+                    Db = da(5)
+                    WRITE(Db(5:8),"(i4)")0229
+                    dd = Jdate(Db)
+                    IF (dd>jd(5)) THEN
+                        nyrr = 365
+                    ELSE
+                        nyrr = 366
+                    ENDIF
+                ENDIF
+            ENDIF
+            jd1=jd1-Nyrr
+        ENDIF                  
+
     ENDDO
     CLOSE(11)
     RETURN
