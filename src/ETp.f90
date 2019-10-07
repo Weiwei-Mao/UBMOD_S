@@ -35,10 +35,10 @@
     CHARACTER (LEN=8) :: date1
     CHARACTER (LEN=8), DIMENSION(5) :: da
     CHARACTER (LEN=100) :: datapath
-    INTEGER (KIND=4) :: i,j,k,jj,num,lenpath
+    INTEGER (KIND=4) :: i,j,k,ii,jj,num,lenpath
     REAL (KIND=KR), DIMENSION(Nlayer) :: dz1,sed,dense
     REAL (KIND=KR), DIMENSION(21) :: crpdat 
-    REAL (KIND=KR), DIMENSION(130) :: work
+    REAL (KIND=KR), DIMENSION(Nlayer) :: work
     REAL (KIND=KR) :: ET0, EP, TP, Nouse, rd, dtp
 
     lenpath = Len_Trim(datapath)
@@ -74,10 +74,12 @@
     DO j=1,MaxAL
         READ(4,*,err=901)date1,Nouse,ET0,Ep,Tp
 
-        dtp=max(0.05*ET0, 0.05)
-        dtp=dtp/4.
-        DO jj=1,4
-          work(jj)=sp(jj,num)
+        dtp=max(0.05_KR*ET0, 0.05_KR)
+        dtp=dtp/4.0_KR
+        DO ii=1,NMat
+            DO jj=1,4
+                work(jj)=sp(jj,ii)
+            ENDDO
         ENDDO
         CALL Fdense(Nlayer,dz1,dtp,work,sed,4)
         
@@ -90,7 +92,7 @@
                 work(jj)=crpdat(jj+10)
             ENDDO
             ptab = crpdat(21)     
-            CALL Fdense(Nlayer,dz1,0.1*rd,work,dense,10)
+            CALL Fdense(Nlayer,dz1,0.1_KR*rd,work,dense,10)
         ENDIF
         DO k=1,Nlayer
             sed(k)=sed(k)*ep
@@ -110,6 +112,107 @@
 901 Terr=3
     RETURN
     END SUBROUTINE ETp
+
+    
+! ====================================================================
+!     Subroutine Steady ET  
+!     
+!     Purpose: Calculate the ET under steady condition.
+! ====================================================================
+    SUBROUTINE Steady_ET(num,datapath,res)
+    USE parm
+    IMPLICIT NONE
+    CHARACTER (LEN=100) :: datapath
+    CHARACTER (LEN=8), DIMENSION(5) :: da
+    REAL (KIND=KR) :: dtp, ckc, rd, clai, claif, ETc, Ep, Tp
+    REAL (KIND=KR) :: f,ckc1,ckc2,ckc3,rd1,rd2,clai1,clai2,clai3,clai4
+    REAL (KIND=KR), DIMENSION(21) :: crpdat
+    REAL (KIND=KR), DIMENSION(Nlayer) :: work,dz1,sed,dense,res
+    INTEGER (KIND=4) :: ii, jj, num, jd1, Jdate
+    INTEGER (KIND=4), DIMENSION(5) :: jd
+    
+    IF (lCrop) THEN
+        CALL cdatebase(datapath,num,da,crpdat)
+        IF (Terr.NE.0) RETURN
+        ! Calculate the potential Ep and Tp.
+        f=crpdat(1)
+        ckc1=crpdat(2)
+        ckc2=crpdat(3)
+        ckc3=crpdat(4)
+        rd1=crpdat(5)
+        rd2=crpdat(6)
+        clai1=crpdat(7)
+        clai2=crpdat(8)
+        clai3=crpdat(9)
+        clai4=crpdat(10)
+        
+        jd1=Jdate(date)
+        DO ii=1,5
+            jd(ii)=Jdate(da(ii))
+        ENDDO
+        IF (jd1<jd(1).or.jd1>jd(5))THEN
+            ckc=0.9 
+            rd=0
+            clai=0
+        ELSEIF (jd1.ge.jd(1).and.jd1<jd(2)) THEN
+            ckc=ckc1
+            rd=rd1+(rd2-rd1)*(jd1-jd(1))/(jd(3)-jd(1))
+            clai=CLAI1+(CLAI2-CLAI1)*(jd1-jd(1))/(jd(2)-jd(1))
+        ELSEIF (jd1.ge.jd(2).and.jd1<jd(3)) THEN
+            ckc=ckc1+(ckc2-ckc1)*(jd1-jd(2))/(jd(3)-jd(2))
+            rd=rd1+(rd2-rd1)*(jd1-jd(1))/(jd(3)-jd(1))
+            clai=CLAI2+(CLAI3-CLAI2)*(jd1-jd(2))/(jd(3)-jd(2))
+        ELSEIF (jd1.ge.jd(3).and.jd1<jd(4)) THEN
+            ckc=ckc2
+            rd=rd2
+            clai=clai3
+        ELSEIF (jd1.ge.jd(4).and.jd1.le.jd(5)) THEN
+	        ckc=ckc2-(ckc2-ckc3)*(jd1-jd(4))/(jd(5)-jd(4))
+            rd=rd2
+            clai=CLAI3-(CLAI3-CLAI4)*(jd1-jd(4))/(jd(5)-jd(4))
+        ENDIF
+        Claif=exp(-f*clai)
+        ETc=ckc*rET
+        Ep = Claif*ETc
+        Tp = ETc-Ep
+    ELSE
+        Ep = rET
+        Tp = 0.0_KR
+    ENDIF
+        
+    ! Redistribution to each layer.
+    dtp = max(0.05_KR*rET, 0.05_KR)
+    dtp = dtp/4.0_KR
+    DO ii=1,NMat
+        DO jj=1,4
+            work(jj)=sp(jj,ii)
+        ENDDO
+    ENDDO
+    DO ii=1,Nlayer
+        dz1(ii)=zx(ii+1)  
+    ENDDO
+    CALL Fdense(Nlayer,dz1,dtp,work,sed,4)
+    
+    IF (lCrop) THEN
+        DO jj=1,10
+            work(jj)=crpdat(jj+10)
+        ENDDO
+        ptab = crpdat(21)
+        CALL Fdense(Nlayer,dz1,0.1_KR*rd,work,dense,10)
+    ENDIF
+    DO ii=1,Nlayer
+        sed(ii)=sed(ii)*ep
+        IF (lCrop) THEN
+            dense(ii)=dense(ii)*tp
+        ELSE
+            dense(ii)=0.0_KR
+        ENDIF
+    ENDDO
+    res = sed+dense
+
+    RETURN
+    END SUBROUTINE Steady_ET
+
 
 ! ====================================================================
 !   Subroutine ep_tp 
@@ -319,7 +422,7 @@
             rd=rd2
             clai=clai3
         ELSEIF (jd1.ge.jd(4).and.jd1.le.jd(5)) THEN
-	    ckc=ckc2-(ckc2-ckc3)*(jd1-jd(4))/(jd(5)-jd(4))
+	        ckc=ckc2-(ckc2-ckc3)*(jd1-jd(4))/(jd(5)-jd(4))
             rd=rd2
             clai=CLAI3-(CLAI3-CLAI4)*(jd1-jd(4))/(jd(5)-jd(4))
         ENDIF
@@ -407,28 +510,28 @@
     USE parm
     IMPLICIT NONE
 
-    REAL (KIND=KR), DIMENSION(NlayerD) :: dz1
-    REAL (KIND=KR), DIMENSION(NlayerD) :: dense
+    REAL (KIND=KR), DIMENSION(Nlayer) :: dz1
+    REAL (KIND=KR), DIMENSION(Nlayer) :: dense
     REAL (KIND=KR), DIMENSION(10) :: work
     REAL (KIND=KR) :: r2, re, r1
     INTEGER (KIND=KI) :: mlayer
     INTEGER (KIND=4) ::  i, j, L, N1
     
     DO i=1,mlayer
-        dense(i)=0.0
+        dense(i)=0.0_KR
     ENDDO
     
-    r2=0.0
+    r2=0.0_KR
 
     DO j=1,mlayer
         L=int(dz1(j)/re)
         
-        IF (l==0) THEN
+        IF (l-0.0_KR<Tol) THEN
             r1=dz1(j)/re*work(L+1)
-        ELSEIF (L>0.and.L<N1) THEN
+        ELSEIF (L>0.0_KR.and.L<N1) THEN
             r1=work(L)+(dz1(j)-re*L)/re*(work(L+1)-work(L))		
         ELSEIF (L.GE.N1) THEN
-            r1=1
+            r1=1.0_KR
         ENDIF
 
         dense(j)=r1
@@ -436,8 +539,8 @@
         r2=r1
     ENDDO
     
-    IF (re == 0) THEN
-        dense = 0
+    IF (re-0.0_KR<Tol) THEN
+        dense = 0.0_KR
     ENDIF
     
     END SUBROUTINE Fdense

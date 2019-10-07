@@ -71,25 +71,27 @@
 
 !-----preparation of the calculation
 ! ====================================================================
-!     CPU time.
+!   CPU time.
     CALL CPU_time (t1)
-!     The initial water amount in model.
+!   The initial water amount in model.
     CALL Balance_Initial
     IF (Terr.ne.0) GOTO 916
 !     Diffusion model.
-    CALL Diffusion_Model
+    IF (lWat) CALL Diffusion_Model
 !     Call for reference Evaportranspiration and division of E&T.
-    CALL Upper_Boundary(datapath)
-    IF (Terr.ne.0) GOTO (911,912,913,918,910) Terr
+    CALL Boundary_Cond(datapath)
+    IF (Terr.ne.0) GOTO (911,912,913,918,910,905) Terr
 ! ====================================================================
 
 !-----Begin time loop.
 100 CONTINUE
 
 ! ====================================================================
-!   Set upper boundary condition.
-    CALL Set_Input
-  
+!   The steady water flow.
+    IF (.NOT.lWat) THEN
+        CALL Steady_Flow
+    ELSE
+
 ! ====================================================================
 !     Four main processes.
 !     Firstly, divide infiltration and surface runoff.
@@ -101,23 +103,26 @@
           !else
           !    qair = Q_infiltration
           !endif
+        !   Set upper boundary condition.
+        CALL Set_Input
 
 ! ====================================================================
 !     Secondly, advective movement driven by gravitational potential.
 !       "Tipping-bucket" method.
-    CALL Water_Redis
-    IF (Terr.ne.0) GOTO (930, 933) Terr
+        CALL Water_Redis
+        IF (Terr.ne.0) GOTO (930, 933) Terr
 
 ! ====================================================================
 !     Thirdly, source/sink term.
 !     open the Files that stored E&T and the rain, and the writen ETa.
-    IF(bup >= Zero) CALL Water_SetET
-    IF (Terr.ne.0) GOTO (931) Terr
+        IF(bup >= Zero) CALL Water_SetET
+        IF (Terr.ne.0) GOTO (931) Terr
 
 ! ====================================================================
 !     Last, Diffusive soil water movement driven by matric potential.
-    CALL Water_Diff
-    IF (Terr.ne.0) GOTO (932) Terr
+        CALL Water_Diff
+        IF (Terr.ne.0) GOTO (932) Terr
+    ENDIF
     
     IF (lChem .and. Cind > 1) THEN
         th = tht
@@ -152,7 +157,7 @@
 ! ====================================================================
 !     Output control.
 !     Output the hydraulic head and soil moisture in 1D model.
-    CALL Hthuz_out
+    CALL Obs_Out
     IF (Terr.ne.0) GOTO (915) Terr
 !   Call for the water balance in 1D and 3D model.
     CALL BalanceT

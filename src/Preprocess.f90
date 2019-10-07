@@ -167,113 +167,138 @@
 ! =========================related functions==========================
 !   None.
 ! ==================================================================== 
-    SUBROUTINE Upper_Boundary(datapath)
+    SUBROUTINE Boundary_Cond(datapath)
     USE parm
     IMPLICIT NONE
     CHARACTER (LEN=100) :: datapath
     INTEGER (KIND=4) :: lenpath, i, j
-    REAL (KIND=KR) :: Nouse
+    REAL (KIND=KR) :: Nouse, sumres
+    REAL (KIND=KR), DIMENSION(Nlayer) :: res
 
     lenpath = Len_Trim(datapath)
-    IF (bup > 0) THEN
-        CALL Etp(1,datapath)
-        IF (Terr.ne.0) RETURN
-        OPEN(110,file=datapath(1:lenpath)//'/'//'01.et0',status='old',err=901)
-        READ(110,*,err=901)
-        OPEN(130,file=datapath(1:lenpath)//'/'//'01.eti',status='old',err=901)
-        OPEN(150,file=datapath(1:lenpath)//'/'//'eta.dat',status='unknown',err=902)
-        WRITE(150,*,err=902)"Variables=DoY,   Ea,   Ta,   Date"
-        READ(130,*,err=901)
-                
-        IF (.NOT. ALLOCATED(precip)) ALLOCATE(precip(2,MaxAL))
-        IF (.NOT. ALLOCATED(Evatra)) ALLOCATE(Evatra(2*Nlayer,MaxAL))
+    IF (lWat) THEN
+        IF (bup > 0) THEN
+            CALL Etp(1,datapath)
+            IF (Terr.ne.0) RETURN
+            OPEN(110,file=datapath(1:lenpath)//'/'//'01.et0',status='old',err=901)
+            READ(110,*,err=901)
+            OPEN(130,file=datapath(1:lenpath)//'/'//'01.eti',status='old',err=901)
+            OPEN(150,file=datapath(1:lenpath)//'/'//'eta.dat',status='unknown',err=902)
+            WRITE(150,*,err=902)"Variables=DoY,   Ea,   Ta,   Date"
+            READ(130,*,err=901)
+                    
+            IF (.NOT. ALLOCATED(precip)) ALLOCATE(precip(2,MaxAL))
+            IF (.NOT. ALLOCATED(Evatra)) ALLOCATE(Evatra(2*Nlayer,MaxAL))
+            
+            DO i = 1,MaxAL
+                READ(110,*,err=901) Nouse,precip(1,i),Nouse,Nouse,Nouse,precip(2,i)
+                READ(130,*,err=901) Nouse,Nouse,(Evatra(j,i),j=1,2*Nlayer)
+            ENDDO
+            precip(2,:) = precip(2,:)/1000_KI
+            Evatra = Evatra/1000_KI
+            CLOSE(110)
+            CLOSE(130)
         
-        DO i = 1,MaxAL
-            READ(110,*,err=901) Nouse,precip(1,i),Nouse,Nouse,Nouse,precip(2,i)
-            READ(130,*,err=901) Nouse,Nouse,(Evatra(j,i),j=1,2*Nlayer)
-        ENDDO
-        precip(2,:) = precip(2,:)/1000_KI
-        Evatra = Evatra/1000_KI
-        CLOSE(110)
-        CLOSE(130)
-
-    ELSEIF (bup == 0) THEN
-        OPEN(120,file=datapath(1:lenpath)//'/'//'met.in',status='old',err=903)
-        READ(120,*,err=903)
-        READ(120,*,err=903)Nup
-        READ(120,*,err=903)
-        IF (.NOT. ALLOCATED(up)) ALLOCATE(up(2,Nup))
-        READ(120,*,err=903)(up(1,i),i=1,Nup)
-        READ(120,*,err=903)
-        READ(120,*,err=903)(up(2,i),i=1,Nup)
-        DO i = 1,Nup
-            up(1,i) = up(1,i)/tConv
-            up(2,i) = up(2,i)/xConv
-        ENDDO
-
-    ELSEIF (bup < 0) THEN
-        CALL Etp(1,datapath)
-        IF (Terr.ne.0) RETURN
-        OPEN(110,file=datapath(1:lenpath)//'/'//'01.et0',status='old',err=901)
-        READ(110,*,err=901)
-        OPEN(130,file=datapath(1:lenpath)//'/'//'01.eti',status='old',err=901)
-        OPEN(150,file=datapath(1:lenpath)//'/'//'eta.dat',status='unknown',err=902)
-        WRITE(150,*,err=902)"Variables=DoY,   Ea,   Ta,   Date"
-        READ(130,*,err=901)
-        IF (.NOT. ALLOCATED(precip)) ALLOCATE(precip(2,MaxAL))
-        IF (.NOT. ALLOCATED(Evatra)) ALLOCATE(Evatra(2*Nlayer,MaxAL))
-        DO i = 1,MaxAL
-            READ(110,*,err=901) Nouse,precip(1,i),Nouse,Nouse,Nouse,precip(2,i)
-            READ(130,*,err=901) Nouse,Nouse,(Evatra(j,i),j=1,2*Nlayer)
-        ENDDO
-        precip(2,:) = precip(2,:)/1000_KI
-        Evatra = Evatra/1000_KI
-        CLOSE(110)
-        CLOSE(130)
-    
-        OPEN(120,file=datapath(1:lenpath)//'/'//'met.in',status='old',err=903)
-        READ(120,*,err=903)
-        READ(120,*,err=903)Nup
-        READ(120,*,err=903)
-        IF (.NOT. ALLOCATED(up)) ALLOCATE(up(2,Nup))
-        READ(120,*,err=903)(up(1,i),i=1,Nup)
-        READ(120,*,err=903)
-        READ(120,*,err=903)(up(2,i),i=1,Nup)
-        DO i = 1,Nup
-            up(1,i) = up(1,i)/tConv
-            up(2,i) = up(2,i)/xConv
+        ELSEIF (bup == 0) THEN
+            OPEN(120,file=datapath(1:lenpath)//'/'//'met.in',status='old',err=903)
+            READ(120,*,err=903)
+            READ(120,*,err=903)Nup
+            READ(120,*,err=903)
+            IF (.NOT. ALLOCATED(up)) ALLOCATE(up(2,Nup))
+            READ(120,*,err=903)(up(1,i),i=1,Nup)
+            READ(120,*,err=903)
+            READ(120,*,err=903)(up(2,i),i=1,Nup)
+            DO i = 1,Nup
+                up(1,i) = up(1,i)/tConv
+                up(2,i) = up(2,i)/xConv
+            ENDDO
+        
+        ELSEIF (bup < 0) THEN
+            CALL Etp(1,datapath)
+            IF (Terr.ne.0) RETURN
+            OPEN(110,file=datapath(1:lenpath)//'/'//'01.et0',status='old',err=901)
+            READ(110,*,err=901)
+            OPEN(130,file=datapath(1:lenpath)//'/'//'01.eti',status='old',err=901)
+            OPEN(150,file=datapath(1:lenpath)//'/'//'eta.dat',status='unknown',err=902)
+            WRITE(150,*,err=902)"Variables=DoY,   Ea,   Ta,   Date"
+            READ(130,*,err=901)
+            IF (.NOT. ALLOCATED(precip)) ALLOCATE(precip(2,MaxAL))
+            IF (.NOT. ALLOCATED(Evatra)) ALLOCATE(Evatra(2*Nlayer,MaxAL))
+            DO i = 1,MaxAL
+                READ(110,*,err=901) Nouse,precip(1,i),Nouse,Nouse,Nouse,precip(2,i)
+                READ(130,*,err=901) Nouse,Nouse,(Evatra(j,i),j=1,2*Nlayer)
+            ENDDO
+            precip(2,:) = precip(2,:)/1000_KI
+            Evatra = Evatra/1000_KI
+            CLOSE(110)
+            CLOSE(130)
+        
+            OPEN(120,file=datapath(1:lenpath)//'/'//'met.in',status='old',err=903)
+            READ(120,*,err=903)
+            READ(120,*,err=903)Nup
+            READ(120,*,err=903)
+            IF (.NOT. ALLOCATED(up)) ALLOCATE(up(2,Nup))
+            READ(120,*,err=903)(up(1,i),i=1,Nup)
+            READ(120,*,err=903)
+            READ(120,*,err=903)(up(2,i),i=1,Nup)
+            DO i = 1,Nup
+                up(1,i) = up(1,i)/tConv
+                up(2,i) = up(2,i)/xConv
+            ENDDO
+        ENDIF
+        
+!       Lower boundary condition
+!       Given lower soil water content.
+        IF (bdn == -1) THEN
+            IF (bup > 0) OPEN(120,file=datapath(1:lenpath)//'/'//'met.in',status='old',err=903)
+            READ(120,*,err=903)
+            READ(120,*,err=903)Ndn
+            READ(120,*,err=903)
+            IF (.NOT. ALLOCATED(dn)) ALLOCATE(up(2,Ndn))
+            READ(120,*,err=903)(dn(1,i),i=1,Ndn)   !
+            READ(120,*,err=903)
+            READ(120,*,err=903)(dn(2,i),i=1,Ndn)
+            DO i = 1,Ndn
+                dn(1,i) = dn(1,i)/tConv
+            ENDDO
+!       Given groundwater table depth.
+        ELSEIF (bdn == -2) THEN
+            IF (bup > 0) OPEN(120,file=datapath(1:lenpath)//'/'//'met.in',status='old',err=903)
+            READ(120,*,err=903)
+            READ(120,*,err=903) gdep
+            gdep = gdep/xConv
+        ENDIF
+    ELSE
+        IF (rET>Tol) THEN
+            CALL Steady_ET(1,datapath,res)
+        ELSE
+            res=0.0_KR
+        ENDIF
+        qirr = rTop
+        sumres = sum(res)
+        DO i = 1,Nlayer
+            IF (rTop-rBot-sumres<Tol) THEN
+                qflux(i,1) = rTop*dt
+                qflux(i,2) = rBot*dt
+            ELSEIF (rTop+rBot-sumres<Tol) THEN
+                qflux(i,1) = rTop*dt
+                qflux(i,2) = rBot*dt
+            ELSEIF (rTop+sumres-rBot<Tol) THEN
+                qflux(i,1) = rTop*dt
+                qflux(i,2) = rBot*dt
+            ELSE
+                Terr = 6
+            ENDIF
+            Sink1d(i) = res(i)*dt
         ENDDO
     ENDIF
-    
-!   Lower boundary condition
-!   Given lower soil water content.
-    IF (bdn == -1) THEN
-        IF (bup > 0) OPEN(120,file=datapath(1:lenpath)//'/'//'met.in',status='old',err=903)
-        READ(120,*,err=903)
-        READ(120,*,err=903)Ndn
-        READ(120,*,err=903)
-        IF (.NOT. ALLOCATED(dn)) ALLOCATE(up(2,Ndn))
-        READ(120,*,err=903)(dn(1,i),i=1,Ndn)   !
-        READ(120,*,err=903)
-        READ(120,*,err=903)(dn(2,i),i=1,Ndn)
-        DO i = 1,Ndn
-            dn(1,i) = dn(1,i)/tConv
-        ENDDO
-!   Given groundwater table depth.
-    ELSEIF (bdn == -2) THEN
-        IF (bup > 0) OPEN(120,file=datapath(1:lenpath)//'/'//'met.in',status='old',err=903)
-        READ(120,*,err=903)
-        READ(120,*,err=903) gdep
-        gdep = gdep/xConv
-    ENDIF
-    
 !   Solute boundary condition
     IF (lchem) THEN
-        IF (bup > 0) OPEN(120,file=datapath(1:lenpath)//'/'//'met.in',status='old',err=903)
+        IF (bup>0 .or. (.NOT.lWat)) OPEN(120,file=datapath(1:lenpath)//'/'//'met.in',status='old',err=903)
         READ(120,*,err=903)
         READ(120,*,err=903)CNup
         READ(120,*,err=903)
-        IF (.NOT. ALLOCATED(Cup)) ALLOCATE(up(2,CNup))
+        IF (.NOT. ALLOCATED(Cup)) ALLOCATE(Cup(2,CNup))
         READ(120,*,err=903)(Cup(1,i),i=1,CNup)
         READ(120,*,err=903)
         READ(120,*,err=903)(Cup(2,i),i=1,CNup)
@@ -284,7 +309,7 @@
         READ(120,*,err=903)
         READ(120,*,err=903)CNdn
         READ(120,*,err=903)
-        IF (.NOT. ALLOCATED(Cdn)) ALLOCATE(up(2,CNdn))
+        IF (.NOT. ALLOCATED(Cdn)) ALLOCATE(Cdn(2,CNdn))
         READ(120,*,err=903)(Cdn(1,i),i=1,CNup)
         READ(120,*,err=903)
         READ(120,*,err=903)(Cdn(2,i),i=1,CNup)
@@ -303,7 +328,7 @@
     RETURN
 903 Terr=5
     RETURN
-    END SUBROUTINE Upper_Boundary
+    END SUBROUTINE Boundary_Cond
     
 ! ====================================================================
 !   Subroutine Set_Input
@@ -318,7 +343,7 @@
     REAL (KIND=KR), DIMENSION(Nlayer) :: tho
     
     IF (bup > 0) THEN
-
+        ! Read precipitation, and set irrigation to zero.
         CALL FindY_Step(MaxAL,t,qair,precip,k)
         qirr = 0.0_KR
         Epi(1:Nlayer) = Evatra(1:NLayer,k)
@@ -331,6 +356,7 @@
         ENDIF
 
     ELSEIF (bup == 0) THEN
+        ! Read irrigation, and set precipitation to zero.
         qair = 0.0_KR
         CALL FindY_Step(Nup,t,qirr,up,k)
         IF (lchem) THEN
@@ -355,10 +381,11 @@
         CALL FindY_Step(Ndn,t,dth,dn,kk)
     ELSEIF (bdn == -2) THEN
         IF (Tlevel == 1) THEN
+            ! Keep the Wlayer steady, change the Nlayer to adjust the groundwater.
             Wlayer = Nlayer
         ELSE
-            rc = qflux(Nlayer,2) !!!
-            IF (rc >= 0) THEN    ! Unsaturated zone to saturated zone, groundwater table upward.
+            rc = qflux(Nlayer,2)
+            IF (rc >= 0) THEN ! Unsaturated zone to saturated zone, groundwater table upward.
                 tho = th
                 DO i = Nlayer,1,-1
                     m = MATuz(i)
@@ -381,23 +408,23 @@
                         tho(i) = thF(m)
                     ELSE
                         gdep = gdep+sum(dz(Nlayer+1:i))-(dz(i)+rc/(par(2,m)-thF(m)))
-                        exit
+                        EXIT
                     ENDIF
                 ENDDO
-                ! Adjust dz and th
-                IF (gdep > zx(Nlayer) .and. gdep < zx(Nlayer+1)) THEN
-                    m = matUZ(Nlayer)
-                    th(Nlayer) = (th(Nlayer)*dz(Nlayer)+thF(m)*(gdep-gdepold)+par(2,m)*(zx(Nlayer+1)-gdep))/(zx(Nlayer+1)-zx(Nlayer))
-                    dz(Nlayer) = zx(Nlayer+1)-zx(Nlayer)
-                ELSE
-                    m = matUZ(Nlayer)
-                    th(Nlayer) = (th(Nlayer)*dz(Nlayer)+par(2,m)*(zx(Nlayer+1)-zx(Nlayer)-dz(Nlayer)))/(zx(Nlayer+1)-zx(Nlayer))
-                    dz(Nlayer) = zx(Nlayer+1)-zx(Nlayer)
-                    DO i = Nlayer+1,Wlayer
-                        m = matUZ(i)
-                        th(i) = thF(m)
-                    ENDDO
-                ENDIF
+            ENDIF
+            ! Adjust dz and th
+            IF (gdep > zx(Nlayer) .and. gdep < zx(Nlayer+1)) THEN
+                m = MATuz(Nlayer)
+                th(Nlayer) = (th(Nlayer)*dz(Nlayer)+thF(m)*(gdep-gdepold)+par(2,m)*(zx(Nlayer+1)-gdep))/(zx(Nlayer+1)-zx(Nlayer))
+                dz(Nlayer) = zx(Nlayer+1)-zx(Nlayer)
+            ELSE
+                m = MATuz(Nlayer)
+                th(Nlayer) = (th(Nlayer)*dz(Nlayer)+par(2,m)*(zx(Nlayer+1)-zx(Nlayer)-dz(Nlayer)))/(zx(Nlayer+1)-zx(Nlayer))
+                dz(Nlayer) = zx(Nlayer+1)-zx(Nlayer)
+                DO i = Nlayer+1,Wlayer
+                    m = MATuz(i)
+                    th(i) = thF(m)
+                ENDDO
             ENDIF
         ENDIF
         
@@ -458,4 +485,3 @@
     ENDDO
 
     END SUBROUTINE FindY_Step
-    

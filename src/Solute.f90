@@ -11,27 +11,29 @@
     
     SUBROUTINE Solute_Conv
     USE parm
+    IMPLICIT NONE
+    INTEGER (KIND=4) :: i
+    INTEGER (KIND=KI) :: m
     REAL (KIND=KR) :: Concen
     REAL (KIND=KR) :: Conca, Concb
     REAL (KIND=KR) :: Ssum0,Ssum1,delta
-    REAL (KIND=KR), dimension(NlayerD) :: thp,thq,thtim,thtm
-    REAL (KIND=KR), dimension(NlayerD,NlayerD) :: A
-    REAL (KIND=KR), dimension(NlayerD) :: B
+    REAL (KIND=KR), DIMENSION(Nlayer) :: thp,thq,thtim,thtm
+    REAL (KIND=KR), DIMENSION(Nlayer,3) :: A
+    REAL (KIND=KR), DIMENSION(Nlayer) :: B
     
     !thim = 1.628D-1
     !thm = 2.072D-1
     !th = 3.7D-1
     !qflux = 3.4392D0/480/0.56
-    !A = 0.0
-    !B = 0.0
-    
-    w = 0
+    A = 0.0_KR
+    B = 0.0_KR
+
     Concini = Conc
     
     IF (MIM) THEN
         DO i = 1,Nlayer
             m = MATuz(i)
-            thtim(i) = par(2,m)*par(5,m)
+            thtim(i) = par(2,m)*par(6,m)
             thtm(i) = tht(i) - thtim(i)
             IF (thtm(i) < 0) THEN
                 thtm(i) = 0
@@ -50,7 +52,8 @@
     ENDIF
     
     IF (MIM) THEN
-        Ssum0 = sum(Conc(1:Nlayer)*thtm(1:Nlayer)*dz(1:Nlayer))+sum(Conim(1:Nlayer)*thtim(1:Nlayer)*dz(1:Nlayer))
+        Ssum0 = sum(Conc(1:Nlayer)*thtm(1:Nlayer)*dz(1:Nlayer))+ &
+              & sum(Conim(1:Nlayer)*thtim(1:Nlayer)*dz(1:Nlayer))
     ELSE
         Ssum0 = sum(Conc(1:Nlayer)*thp(1:Nlayer)*dz(1:Nlayer))
     ENDIF
@@ -69,47 +72,47 @@
 !       the qflux considers dt, the equations download do not need to divide dt.
         IF (i == 1) THEN
             IF (qflux(1,2) >= 0) THEN
-                A(1,1) = thq(i)+w*qflux(i,2)/dz(i)
+                A(1,2) = thq(i)+w*qflux(i,2)/dz(i)
                 B(1) = thp(i)*Conc(i)+qirr*dt*Concup/dz(i)-(1-w)*qflux(i,2)*Conc(i)/dz(i)
             ELSEIF (qflux(1,2) < 0) THEN
-                A(1,1) = thq(i)
-                A(1,2) = w*qflux(i,2)/dz(i)
+                A(1,2) = thq(i)
+                A(1,3) = w*qflux(i,2)/dz(i)
                 B(1) = thp(i)*Conc(i)+qirr*dt*Concup/dz(i)-(1-w)*qflux(i,2)*Conc(i+1)/dz(i)
             ENDIF
         ENDIF
         IF (i >= 2 .and. i <= Nlayer-1) THEN
             IF (qflux(i,1) >= 0 .and. qflux(i,2) >= 0) THEN
-                A(i,i) = thq(i)+w*qflux(i,2)/dz(i)
-                A(i,i-1) = -w*qflux(i,1)/dz(i)
+                A(i,2) = thq(i)+w*qflux(i,2)/dz(i)
+                A(i,1) = -w*qflux(i,1)/dz(i)
                 B(i) = thp(i)*Conc(i)+(1-w)*qflux(i,1)*Conc(i-1)/dz(i)-(1-w)*qflux(i,2)*Conc(i)/dz(i)
             ELSEIF (qflux(i,1) >= 0 .and. qflux(i,2) < 0) THEN
-                A(i,i-1) = -w*qflux(i,1)/dz(i)
-                A(i,i) = thq(i)
-                A(i,i+1) = w*qflux(i,2)/dz(i)
+                A(i,1) = -w*qflux(i,1)/dz(i)
+                A(i,2) = thq(i)
+                A(i,3) = w*qflux(i,2)/dz(i)
                 B(i) = thp(i)*Conc(i)+(1-w)*qflux(i,1)*Conc(i-1)/dz(i)-(1-w)*qflux(i,2)*Conc(i+1)/dz(i)
             ELSEIF (qflux(i,1) < 0 .and. qflux(i,2) >= 0) THEN
-                A(i,i) = thq(i)-w*qflux(i,1)/dz(i)+w*qflux(i,2)/dz(i)
+                A(i,2) = thq(i)-w*qflux(i,1)/dz(i)+w*qflux(i,2)/dz(i)
                 B(i) = thp(i)*Conc(i)+(1-w)*qflux(i,1)*Conc(i)/dz(i)-(1-w)*qflux(i,2)*Conc(i)/dz(i)
             ELSEIF (qflux(i,1) < 0 .and. qflux(i,2) < 0) THEN
-                A(i,i) = thq(i)-w*qflux(i,1)/dz(i)
-                A(i,i+1) = w*qflux(i,2)/dz(i)
+                A(i,2) = thq(i)-w*qflux(i,1)/dz(i)
+                A(i,3) = w*qflux(i,2)/dz(i)
                 B(i) = thp(i)*Conc(i)+(1-w)*qflux(i,1)*Conc(i)/dz(i)-(1-w)*qflux(i,2)*Conc(i+1)/dz(i)
             ENDIF
         ENDIF
         IF (i == Nlayer) THEN
             IF (qflux(i,1) >= 0 .and. qflux(i,2) >= 0) THEN
-                A(i,i) = thq(i)+w*qflux(i,2)/dz(i)
-                A(i,i-1) = -w*qflux(i,1)/dz(i)
+                A(i,2) = thq(i)+w*qflux(i,2)/dz(i)
+                A(i,1) = -w*qflux(i,1)/dz(i)
                 B(i) = thp(i)*Conc(i)+(1-w)*qflux(i,1)*Conc(i-1)/dz(i)-(1-w)*qflux(i,2)*Conc(i)/dz(i)
             ELSEIF (qflux(i,1) >= 0 .and. qflux(i,2) < 0) THEN
-                A(i,i-1) = -w*qflux(i,1)/dz(i)
-                A(i,i) = thq(i)
+                A(i,1) = -w*qflux(i,1)/dz(i)
+                A(i,2) = thq(i)
                 B(i) = thp(i)*Conc(i)+(1-w)*qflux(i,1)*Conc(i-1)/dz(i)-qflux(i,2)*Concdn/dz(i)
             ELSEIF (qflux(i,1) < 0 .and. qflux(i,2) >= 0) THEN
-                A(i,i) = thq(i)-w*qflux(i,1)/dz(i)+w*qflux(i,2)/dz(i)
+                A(i,2) = thq(i)-w*qflux(i,1)/dz(i)+w*qflux(i,2)/dz(i)
                 B(i) = thp(i)*Conc(i)+(1-w)*qflux(i,1)*Conc(i)/dz(i)-(1-w)*qflux(i,2)*Conc(i)/dz(i)
             ELSEIF (qflux(i,1) < 0 .and. qflux(i,2) < 0) THEN
-                A(i,i) = thq(i)-w*qflux(i,1)/dz(i)
+                A(i,2) = thq(i)-w*qflux(i,1)/dz(i)
                 B(i) = thp(i)*Conc(i)+(1-w)*qflux(i,1)*Conc(i)/dz(i)-qflux(i,2)*Concdn/dz(i)
             ENDIF
         ENDIF
@@ -137,7 +140,8 @@
                 Conc1(i)  = 0
             ENDIF
         ENDDO
-        Ssum1 = sum(Conc1(1:Nlayer)*thm(1:Nlayer)*dz(1:Nlayer))+sum(Conim(1:Nlayer)*thim(1:Nlayer)*dz(1:Nlayer))
+        Ssum1 = sum(Conc1(1:Nlayer)*thm(1:Nlayer)*dz(1:Nlayer))+ &
+              & sum(Conim(1:Nlayer)*thim(1:Nlayer)*dz(1:Nlayer))
     ELSE
         Ssum1 = sum(Conc1(1:Nlayer)*thq(1:Nlayer)*dz(1:Nlayer))
     ENDIF
@@ -181,10 +185,10 @@
     REAL (KIND=KR) :: con,con1,con2,ds
     REAL (KIND=KR) :: Solid,Solid1,Solid2
     REAL (KIND=KR) :: partao,partao1,partao2
-    REAL (KIND=KR), dimension(NlayerD) :: R,Rm,Rim
-    REAL (KIND=KR), dimension(NlayerD) :: F,Fm,Fim
-    REAL (KIND=KR), dimension(NlayerD) :: G,Gm,Gim
-    REAL (KIND=KR), dimension(NlayerD) :: Conim_new
+    REAL (KIND=KR), dimension(Nlayer) :: R,Rm,Rim
+    REAL (KIND=KR), dimension(Nlayer) :: F,Fm,Fim
+    REAL (KIND=KR), dimension(Nlayer) :: G,Gm,Gim
+    REAL (KIND=KR), dimension(Nlayer) :: Conim_new
     
     step = dt
     
@@ -307,9 +311,10 @@
     USE parm
     REAL (KIND=KR) :: step
     REAL (KIND=KR) :: Ssum0,Ssum1,delta
-    REAL (KIND=KR), dimension(NlayerD) :: Conim_new,Conc3_new
+    REAL (KIND=KR), dimension(Nlayer) :: Conim_new,Conc3_new
     
-    Ssum0 = sum(Conim(1:Nlayer)*thim(1:Nlayer)*dz(1:Nlayer))+sum(Conc2(1:Nlayer)*thm(1:Nlayer)*dz(1:Nlayer))
+    Ssum0 = sum(Conim(1:Nlayer)*thim(1:Nlayer)*dz(1:Nlayer))+ &
+          & sum(Conc2(1:Nlayer)*thm(1:Nlayer)*dz(1:Nlayer))
     step = dt/10
     
     DO j = 1,10
@@ -330,7 +335,8 @@
     Conim = Conim_new
     Conc3 = Conc3_new
 
-    Ssum1 = sum(Conim_new(1:Nlayer)*thim(1:Nlayer)*dz(1:Nlayer))+sum(Conc3(1:Nlayer)*thm(1:Nlayer)*dz(1:Nlayer))
+    Ssum1 = sum(Conim_new(1:Nlayer)*thim(1:Nlayer)*dz(1:Nlayer))+ &
+          & sum(Conc3(1:Nlayer)*thm(1:Nlayer)*dz(1:Nlayer))
     delta = Ssum0 - Ssum1
     IF (abs(delta) > Tol) THEN
         WRITE(*,*) 'Mass Balance Error, SUBTOUTINE Solute_Exch'
@@ -356,13 +362,13 @@
     INTEGER (KIND=4) :: m,m1,m2, dnn
     REAL (KIND=KR) :: step,deltat
     REAL (KIND=KR) :: delta
-    REAL (KIND=KR), dimension(NlayerD,NlayerD) :: A
-    REAL (KIND=KR), dimension(NlayerD) :: B,S,D,v
-    REAL (KIND=KR), dimension(NlayerD) :: thq,Conc_ini
+    REAL (KIND=KR), dimension(Nlayer,3) :: A
+    REAL (KIND=KR), dimension(Nlayer) :: B,S,D,v
+    REAL (KIND=KR), dimension(Nlayer) :: thq,Conc_ini
     REAL (KIND=KR), dimension(Nlayer,2) :: DDD
     
-    A = 0.0
-    B = 0.0
+    A = 0.0_KR
+    B = 0.0_KR
     
     step = dt
     deltat = dt
@@ -427,28 +433,28 @@
             IF (i == 1) THEN
 !               Upper Boundary Condition
                 IF (MIM) THEN
-                    A(1,1) = dz(1)*thm(1)/deltat+DDD(i,2)/(dz(1)+dz(2))
-                    A(1,2) = -DDD(i,2)/(dz(1)+dz(2))
+                    A(1,2) = dz(1)*thm(1)/deltat+DDD(i,2)/(dz(1)+dz(2))
+                    A(1,3) = -DDD(i,2)/(dz(1)+dz(2))
                     B(1) = dz(1)*Conc_ini(1)*thm(1)/deltat+DDD(i,2)*(Conc_ini(2)-Conc_ini(1))/(dz(1)+dz(2))
                 ELSE
-                    A(1,1) = dz(1)*th(1)/deltat+DDD(i,2)/(dz(1)+dz(2))
-                    A(1,2) = -DDD(i,2)/(dz(1)+dz(2))
+                    A(1,2) = dz(1)*th(1)/deltat+DDD(i,2)/(dz(1)+dz(2))
+                    A(1,3) = -DDD(i,2)/(dz(1)+dz(2))
                     B(1) = dz(1)*Conc_ini(1)*th(1)/deltat+DDD(i,2)*(Conc_ini(2)-Conc_ini(1))/(dz(1)+dz(2))
                 ENDIF
       
             ELSEIF (i>=2 .and. i<=Nlayer-1) THEN
       
                 IF (MIM) THEN
-                    A(i,i-1) = -DDD(i,1)/(dz(i-1)+dz(i))
-                    A(i,i) = dz(i)*thm(i)/deltat+DDD(i,1)/(dz(i-1)+dz(i))+DDD(i,2)/(dz(i)+dz(i+1))
-                    A(i,i+1) = -DDD(i,2)/(dz(i)+dz(i+1))
+                    A(i,1) = -DDD(i,1)/(dz(i-1)+dz(i))
+                    A(i,2) = dz(i)*thm(i)/deltat+DDD(i,1)/(dz(i-1)+dz(i))+DDD(i,2)/(dz(i)+dz(i+1))
+                    A(i,3) = -DDD(i,2)/(dz(i)+dz(i+1))
       
                     B(i) = dz(i)*thm(i)*Conc_ini(i)/deltat+DDD(i,1)*(Conc_ini(i-1)-Conc_ini(i))/(dz(i-1)+dz(i)) &
                        & + DDD(i,2)*(Conc_ini(i+1)-Conc_ini(i))/(dz(i)+dz(i+1))
                 ELSE
-                    A(i,i-1) = -DDD(i,1)/(dz(i-1)+dz(i))
-                    A(i,i) = dz(i)*th(i)/deltat+DDD(i,1)/(dz(i-1)+dz(i))+DDD(i,2)/(dz(i)+dz(i+1))
-                    A(i,i+1) = -DDD(i,2)/(dz(i)+dz(i+1))
+                    A(i,1) = -DDD(i,1)/(dz(i-1)+dz(i))
+                    A(i,2) = dz(i)*th(i)/deltat+DDD(i,1)/(dz(i-1)+dz(i))+DDD(i,2)/(dz(i)+dz(i+1))
+                    A(i,3) = -DDD(i,2)/(dz(i)+dz(i+1))
       
                     B(i) = dz(i)*th(i)*Conc_ini(i)/deltat+DDD(i,1)*(Conc_ini(i-1)-Conc_ini(i))/(dz(i-1)+dz(i)) &
                        & + DDD(i,2)*(Conc_ini(i+1)-Conc_ini(i))/(dz(i)+dz(i+1))
@@ -458,12 +464,12 @@
 !               Lower Boundary Condition
       
                 IF (MIM) THEN
-                    A(Nlayer,Nlayer-1) = -DDD(i,1)/(dz(Nlayer)+dz(Nlayer-1))
-                    A(Nlayer,Nlayer) = dz(Nlayer)*thm(Nlayer)/deltat+DDD(i,1)/(dz(Nlayer)+dz(Nlayer-1))
+                    A(Nlayer,1) = -DDD(i,1)/(dz(Nlayer)+dz(Nlayer-1))
+                    A(Nlayer,2) = dz(Nlayer)*thm(Nlayer)/deltat+DDD(i,1)/(dz(Nlayer)+dz(Nlayer-1))
                     B(Nlayer) = dz(Nlayer)*Conc_ini(Nlayer)*thm(Nlayer)/deltat+DDD(i,1)*(Conc_ini(Nlayer-1)-Conc_ini(Nlayer))/(dz(Nlayer-1)+dz(Nlayer))
                 ELSE
-                    A(Nlayer,Nlayer-1) = -DDD(i,1)/(dz(Nlayer)+dz(Nlayer-1))
-                    A(Nlayer,Nlayer) = dz(Nlayer)*th(Nlayer)/deltat+DDD(i,1)/(dz(Nlayer)+dz(Nlayer-1))
+                    A(Nlayer,1) = -DDD(i,1)/(dz(Nlayer)+dz(Nlayer-1))
+                    A(Nlayer,2) = dz(Nlayer)*th(Nlayer)/deltat+DDD(i,1)/(dz(Nlayer)+dz(Nlayer-1))
                     B(Nlayer) = dz(Nlayer)*Conc_ini(Nlayer)*th(Nlayer)/deltat+DDD(i,1)*(Conc_ini(Nlayer-1)-Conc_ini(Nlayer))/(dz(Nlayer-1)+dz(Nlayer))
                 ENDIF
             ENDIF        

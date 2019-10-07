@@ -58,8 +58,8 @@
     READ(33,*,err=901)
     READ(33,*,err=901) lCheck,lWat,lChem,lTemp,MIM,DiCr,lCrop,IfPM
     READ(33,*,err=901)
-    IF (.not.lWat) THEN
-        READ(33,*,err=901)rTop,rBot,rRoot
+    IF (.NOT.lWat) THEN
+        READ(33,*,err=901)rTop,rBot,rET
     ELSE
         READ(33,*,err=901) Bup,Bdn,Drng,Dfit
     ENDIF
@@ -78,7 +78,7 @@
     DO i=1,NMat
         READ(33,*,err=902) (Par(j,i),j=1,NPar),thF(i),thW(i),(sp(j,i),j=1,4)
         ths(i)=par(2,i)
-        par(4,i) = par(4,i)*tConv/xConv
+        par(5,i) = par(5,i)*tConv/xConv
     ENDDO
 
     WRITE(*,*) 'Reading Time information'
@@ -104,7 +104,7 @@
         WRITE(*,*) 'Reading solute information'
         READ(33,*,err=904)
         READ(33,*,err=904)
-        READ(33,*,err=904) CBup,CBdn
+        READ(33,*,err=904) w,CBup,CBdn
         READ(33,*,err=904)
 !       the exchange coefficient between mobile region and immobile region
 !       the diffusion coefficient
@@ -211,7 +211,11 @@
         IF (.NOT. ALLOCATED(Obs)) ALLOCATE(Obs(NObs))
         READ(32,*,err=901)
         READ(32,*,err=901) (Obs(j),j=1,NObs,1)
-        Text ='   Theta      '
+        IF (lChem) THEN
+            Text ='    Theta     Conc   '
+        ELSE
+            Text ='   Theta   '
+        ENDIF
         WRITE(80,110) (Obs(j),j=1,NObs,1)
         WRITE(80,120) (Text,j=1,NObs,1)
     ENDIF    
@@ -245,7 +249,7 @@
     IF (MIM) THEN
         DO i = 1,Nlayer
             m = MATuz(i)
-            thim(i) = par(2,m)*par(5,m)
+            thim(i) = par(2,m)*par(6,m)
             thm(i) = th(i) - thim(i)
             IF (thm(i) < 0) THEN
                 thm(i) = 0
@@ -272,8 +276,8 @@
     CALL Examine2
     
     CLOSE(32)
-110 FORMAT (///4x,5(5x,'Node(',i3,')',5x))
-120 FORMAT(/' time ',5(a20))
+110 FORMAT (/11x,5(5x,'Node(',i3,')',6x))
+120 FORMAT(/'      time ',5(a20))
     RETURN
     
 901 Terr=1
@@ -415,8 +419,10 @@
 !   Check the input data.
     IF (.not.lChem .and. MIM) GOTO 901
     
-    IF (Drng>7 .or. Drng<1) GOTO 901
-    IF (Dfit>3 .or. Dfit<-1) GOTO 901
+    IF (lWat) THEN
+        IF (Drng>7 .or. Drng<1) GOTO 901
+        IF (Dfit>3 .or. Dfit<-1) GOTO 901
+    ENDIF
     IF (CosAlf>1 .or. CosAlf<0) GOTO 901
     IF (NMat>NMATD) GOTO 902
     IF (NReg>NREGD) GOTO 902

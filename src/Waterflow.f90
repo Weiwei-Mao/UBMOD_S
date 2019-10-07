@@ -39,6 +39,8 @@
     qvoluz = 0.0_KR
     qairtemp = (qair+qirr)*dt
 
+    IF (qairtemp<Tol) RETURN
+    
     DO i =1,Nlayer
         m = MATuz(i)
         qvoluz = qvoluz+(ths(m)-th(i))*dz(i)
@@ -66,6 +68,7 @@
     RETURN
     END SUBROUTINE infil
 
+
 ! ====================================================================
 !     Subroutine Water_Redis   
 !     
@@ -81,6 +84,7 @@
 
     step=dt
     TotalPerco=0.0_KR
+    tht = th
 
 !    drainage
 ! ==================================================================== 
@@ -320,7 +324,7 @@
     IF (bdn == -2 .or. bdn == -1) THEN
         Nlayer = Nlayer+1
     ENDIF
-    qku = 0
+    qku = 0.0_KR
     
     DO j = 1,ddn
         th0 = th  ! 
@@ -350,7 +354,6 @@
                         & *log(S(i)**(par_n(m)/(1-par_n(m)))-1)*S(i)**(-par_n(m)/(1-par_n(m))))
             ENDIF
         ENDDO
-
     
         DO i = 2,Nlayer-1
             m   = MATuz(i)
@@ -368,10 +371,9 @@
                 ENDIF
             ENDIF
 
-            A(i,2) = dz(i)/deltat+2*sqrt(D(i-1)*D(i))/(dz(i-1)+dz(i))+2*sqrt(D(i+1)*D(i)) &
-                   & /(dz(i+1)+dz(i))
-            A(i,3) = -2*sqrt(D(i+1)*D(i))/(dz(i+1)+dz(i))
-            A(i,1) = -2*sqrt(D(i-1)*D(i))/(dz(i-1)+dz(i))
+            A(i,2) = dz(i)/deltat+2*Da/(dz(i-1)+dz(i))+2*Db/(dz(i+1)+dz(i))
+            A(i,3) = -2*Db/(dz(i+1)+dz(i))
+            A(i,1) = -2*Da/(dz(i-1)+dz(i))
             ! correction£¬ 
             correction1 = (S(i)+S(i-1))/2*(par(2,m1)-par(2,m))+(2.0-S(i)-S(i-1))/2*(par(1,m1) &
                         & -par(1,m))+(dern(i)+dern(i-1))/2*(par_n(m1)-par_n(m))
@@ -381,10 +383,10 @@
             !         & (par(1,m1)-par(1,m))/correction1,(dern(i)+dern(i-1))/2*(par_n(m1)-par_n(m))/correction1
             !WRITE(99,*)(S(i)+S(i+1))/2*(par(2,m11)-par(2,m))/correction2,(2.0-S(i)-S(i+1))/2* &
             !         & (par(1,m11)-par(1,m))/correction2,(dern(i)+dern(i+1))/2*(par_n(m11)-par_n(m))/correction2
-            correction1 = correction1
-            correction2 = correction2
-            B(i) = th0(i)*dz(i)/deltat-correction1*2*sqrt(D(i-1)*D(i))/(dz(i)+dz(i-1))- &
-                 & correction2*2*sqrt(D(i+1)*D(i))/(dz(i)+dz(i+1))
+            !correction1 = correction1
+            !correction2 = correction2
+            B(i) = th0(i)*dz(i)/deltat-correction1*2*Da/(dz(i)+dz(i-1))- &
+                 & correction2*2*Db/(dz(i)+dz(i+1))
         END DO
 
         m  = MATuz(1)
@@ -508,8 +510,8 @@
     DO i = 1,Nlayer
         dq(i) = (thu(i)-th(i))*dz(i)
     ENDDO
-    qchange(1,1) = 0
-    qchange(Nlayer,2) = 0
+    qchange(1,1) = 0.0_KR
+    qchange(Nlayer,2) = 0.0_KR
     DO i = 1,Nlayer-1
         qchange(i,2) = dq(i)+qchange(i,1)
         qchange(i+1,1) = qchange(i,2)
@@ -525,7 +527,7 @@
             thim(i) = par(2,m)*par(5,m)
             thm(i) = th(i) - thim(i)
             IF (thm(i) < 0) THEN
-                thm(i) = 0
+                thm(i) = 0.0_KR
                 thim(i) = th(i)
             ENDIF
         ENDDO
@@ -548,7 +550,7 @@
         Courant(i) = v/dz(i)
     ENDDO
     
-    Cind = ceiling(maxval(Courant)-0.05)
+    Cind = ceiling(maxval(Courant)-0.05_KR)
     
 !    IF (Cind > 1) Cind = Cind + 1
 
@@ -620,3 +622,24 @@
         x(i)=(y(i)-c(i)*x(i+1))/u(i)
     ENDDO
     END SUBROUTINE chase
+
+! ====================================================================
+!     Subroutine infil   
+!     
+!     Purpose: The allocation of the infiltration water.
+! ====================================================================
+    SUBROUTINE Steady_Flow
+    USE parm
+    IMPLICIT NONE
+    INTEGER (KIND=KI) :: kk
+    
+    IF (lchem) THEN
+        CALL FindY_Step(CNup,t,Concup,Cup,kk)
+        CALL FindY_Step(CNdn,t,Concdn,Cdn,kk)
+    ENDIF
+    Cind=1.0_KR
+    tht = thini
+    th = thini
+
+    RETURN
+    END SUBROUTINE Steady_Flow

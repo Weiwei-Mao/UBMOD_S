@@ -83,7 +83,7 @@
     REAL (KIND=KR) :: mConv            ! Mass conversion coefficient.
     REAL (KIND=KR) :: rTop             ! If lWat=false, upper flux
     REAL (KIND=KR) :: rBot             ! If lWat=false, lower flux
-    REAL (KIND=KR) :: rRoot            ! If lWat=false, potential transpiration
+    REAL (KIND=KR) :: rET            ! If lWat=false, potential evapotranspiration
     
     REAL (KIND=KR), ALLOCATABLE :: TPrint(:)        ! The print time.
     REAL (KIND=KR), ALLOCATABLE :: ths(:)           ! ths for each materials.
