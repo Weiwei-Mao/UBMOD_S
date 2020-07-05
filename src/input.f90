@@ -61,6 +61,11 @@
     IF (.NOT.lWat) THEN
         READ(33,*,err=901)rTop,rBot,rET
     ELSE
+        ! Bup. 1, atmospheric boundary, open 01.wea;
+        !      0, given flux (irrigation), open met.in;
+        !     <0, precipitation and irrigation, open both files.
+        ! Bdn. 0, 0 flux boundary; -1, given water content, open met.in;
+        !     -2, given groundwater depth, open met in.
         READ(33,*,err=901) Bup,Bdn,Drng,Dfit
     ENDIF
     WRITE(*,*) 'Reading Material information'
@@ -84,17 +89,28 @@
     WRITE(*,*) 'Reading Time information'
     READ(33,*,err=903)
     READ(33,*,err=903)
-    READ(33,*,err=903) dt,ddn,MPL!,MMPL
+    READ(33,*,err=903) dt,ddn,MPL ! If MPL<0, print every dt.
     dt = dt/tConv
     dtOld = dt
     READ(33,*,err=903)
     MaxAL = 0.0_KR
-    READ(33,*,err=903) date,tinit,tEnd,MaxAL
+    READ(33,*,err=903) date,tinit,tEnd
     t = tinit/tConv+dt
     tEnd = tEnd/tConv
+
     READ(33,*,err=903)
-    IF (.NOT. ALLOCATED(TPrint)) ALLOCATE(TPrint(MPL))
-    READ(33,*,err=903) (TPrint(i),i=1,MPL)
+    IF (MPL > 0) THEN
+        IF (.NOT. ALLOCATED(TPrint)) ALLOCATE(TPrint(MPL))
+        READ(33,*) (TPrint(i),i=1,MPL)
+    ELSE
+        READ(33,*)
+        MPL = ceiling((tEnd-tinit)/dt)
+        IF (.NOT. ALLOCATED(TPrint)) ALLOCATE(TPrint(MPL))
+        DO i = 1,tEnd
+            TPrint(i) = i
+        ENDDO
+    ENDIF
+
     TPrint = tPrint/tConv
     Plevel = 1
     Tlevel = 1
@@ -126,7 +142,7 @@
             gamas(i) = ChPar(9,i)
             tao(i)   = ChPar(10,i)
             IF (.not. DiCr) THEN
-                tao(i) = 0D0
+                tao(i) = 0.0_KR
             ENDIF
         ENDDO
         Csat  = ChPar(11,1)
@@ -454,6 +470,12 @@
 
     END SUBROUTINE Examine1
 
+
+! ====================================================================
+!   Subroutine Examine
+!     
+!   Purpose: Examine the input Parameters
+! ====================================================================
     SUBROUTINE Examine2
     USE parm 
     IMPLICIT NONE

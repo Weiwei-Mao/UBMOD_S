@@ -51,6 +51,8 @@
     DO i=1,Nlayer
         dz1(i)=zx(i+1)  
     ENDDO
+    
+    CALL Caldays(datapath, MaxAL)
 
     IF (lCrop) THEN
         CALL Crop(datapath,num,numc,date1,MaxAL)
@@ -113,6 +115,29 @@
     RETURN
     END SUBROUTINE ETp
 
+    
+    SUBROUTINE Caldays(datapath, MaxAL)
+    USE parm, ONLY : KI
+    IMPLICIT NONE
+    INTEGER (KIND=KI) :: MaxAL
+    CHARACTER (LEN=100) :: datapath, cha1
+    INTEGER (KIND=4) ::lenpath, Terr
+    
+    lenpath = Len_Trim(datapath)
+    cha1 = '01.wea'
+    MaxAL = 0
+    OPEN(101,file=datapath(1:lenpath)//'/'//cha1,status="old",err=901)
+    DO WHILE (.not. eof(101))
+        READ(101,*)
+        MaxAL = MaxAL + 1
+    ENDDO
+    MaxAL = MaxAL - 1
+    CLOSE(101)
+    RETURN
+    
+901 Terr=1
+    RETURN    
+    END SUBROUTINE Caldays
     
 ! ====================================================================
 !     Subroutine Steady ET  
